@@ -1,38 +1,16 @@
 import os
 import sys
-
-# Add system path for proper imports
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-from flask import Flask, request, jsonify
-from flask_cors import CORS
 import sqlite3
 import base64
 import io
-import numpy as np
-from PIL import Image
 import uuid
 import logging
 from datetime import datetime
 import hashlib
 
-# Import deepface with better error handling
-try:
-    from deepface import DeepFace
-    DEEPFACE_AVAILABLE = True
-    print("✅ DeepFace imported successfully")
-except ImportError as e:
-    print(f"⚠️ DeepFace not available: {e}")
-    print("🔄 Installing DeepFace...")
-    try:
-        import subprocess
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "deepface"])
-        from deepface import DeepFace
-        DEEPFACE_AVAILABLE = True
-        print("✅ DeepFace installed and imported successfully")
-    except Exception as install_error:
-        print(f"❌ Failed to install DeepFace: {install_error}")
-        DEEPFACE_AVAILABLE = False
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from PIL import Image
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for cross-origin requests
@@ -66,18 +44,6 @@ def init_database():
                 email TEXT UNIQUE,
                 face_image_path TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # Face encodings table (for backup/comparison)
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS face_encodings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                encoding_hash TEXT,
-                model_name TEXT DEFAULT 'VGG-Face',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id)
             )
         ''')
         
@@ -138,9 +104,9 @@ def health_check():
     """Health check endpoint"""
     return jsonify({
         'status': 'healthy',
-        'service': 'Face Recognition Server',
+        'service': 'Face Recognition Server (Simplified)',
         'version': '1.0.0',
-        'deepface_available': DEEPFACE_AVAILABLE,
+        'message': 'Server is running without DeepFace (for testing)',
         'timestamp': datetime.now().isoformat()
     })
 
@@ -189,20 +155,6 @@ def register_user():
             UPDATE users SET face_image_path = ? WHERE id = ?
         ''', (image_path, user_id))
         
-        # Generate face encoding hash if DeepFace is available
-        if DEEPFACE_AVAILABLE:
-            try:
-                # Use DeepFace to analyze the face
-                analysis = DeepFace.represent(img_path=image_path, model_name='VGG-Face')
-                encoding_hash = hashlib.md5(str(analysis[0]['embedding']).encode()).hexdigest()
-                
-                cursor.execute('''
-                    INSERT INTO face_encodings (user_id, encoding_hash, model_name)
-                    VALUES (?, ?, ?)
-                ''', (user_id, encoding_hash, 'VGG-Face'))
-            except Exception as e:
-                logger.warning(f"Could not generate face encoding: {str(e)}")
-        
         conn.commit()
         conn.close()
         
@@ -213,7 +165,7 @@ def register_user():
             'user_id': user_id,
             'name': name,
             'department': department,
-            'message': 'User registered successfully'
+            'message': 'User registered successfully (image saved, face recognition disabled)'
         }), 201
         
     except Exception as e:
@@ -222,13 +174,8 @@ def register_user():
 
 @app.route('/api/auth/recognize', methods=['POST'])
 def recognize_face():
-    """Recognize face from uploaded image"""
+    """Simulate face recognition for testing"""
     try:
-        if not DEEPFACE_AVAILABLE:
-            return jsonify({
-                'error': 'Face recognition not available - DeepFace not installed'
-            }), 503
-            
         data = request.get_json()
         
         if not data:
@@ -239,125 +186,47 @@ def recognize_face():
         if not face_image_base64:
             return jsonify({'error': 'face_image is required'}), 400
         
-        # Convert base64 to image
-        image = base64_to_image(face_image_base64)
-        if image is None:
-            return jsonify({'error': 'Invalid image format'}), 400
-        
-        # Save temporary image for recognition
-        temp_filename = f"temp_{uuid.uuid4().hex[:8]}.jpg"
-        temp_filepath = os.path.join(UPLOAD_FOLDER, temp_filename)
-        
-        # Convert to RGB if necessary
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
-        
-        image.save(temp_filepath, 'JPEG', quality=95)
-        
-        # Get all registered users
+        # Get all registered users for simulation
         conn = sqlite3.connect(DATABASE)
         cursor = conn.cursor()
         
         cursor.execute('''
-            SELECT id, name, department, face_image_path 
-            FROM users 
-            WHERE face_image_path IS NOT NULL
+            SELECT id, name, department FROM users LIMIT 1
         ''')
         
-        users = cursor.fetchall()
+        user = cursor.fetchone()
         
-        if not users:
-            os.remove(temp_filepath)
+        if not user:
             conn.close()
             return jsonify({
                 'success': False,
                 'error': 'No registered users found'
             }), 404
         
-        best_match = None
-        highest_confidence = 0.0
-        
-        # Compare with each registered user
-        for user in users:
-            user_id, name, department, face_image_path = user
-            
-            if not os.path.exists(face_image_path):
-                logger.warning(f"Face image not found for user {name}: {face_image_path}")
-                continue
-            
-            try:
-                # Use DeepFace to verify faces
-                result = DeepFace.verify(
-                    img1_path=temp_filepath,
-                    img2_path=face_image_path,
-                    model_name='VGG-Face',
-                    distance_metric='cosine'
-                )
-                
-                # Convert distance to confidence score
-                distance = result['distance']
-                confidence = max(0, (1 - distance) * 100)  # Convert to percentage
-                
-                logger.info(f"Comparison with {name}: confidence={confidence:.2f}%")
-                
-                if result['verified'] and confidence > highest_confidence:
-                    highest_confidence = confidence
-                    best_match = {
-                        'user_id': user_id,
-                        'name': name,
-                        'department': department,
-                        'confidence': confidence
-                    }
-                    
-            except Exception as e:
-                logger.error(f"Error comparing with user {name}: {str(e)}")
-                continue
-        
-        # Clean up temporary file
-        try:
-            os.remove(temp_filepath)
-        except:
-            pass
+        # Simulate successful recognition for testing
+        user_id, name, department = user
+        confidence = 85.5  # Simulated confidence
         
         # Record login attempt
         client_ip = request.remote_addr
+        cursor.execute('''
+            INSERT INTO login_history (user_id, action_type, status, confidence, ip_address)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (user_id, 'login', 'success', confidence, client_ip))
         
-        if best_match and highest_confidence >= 60:  # 60% threshold
-            # Successful recognition
-            cursor.execute('''
-                INSERT INTO login_history (user_id, action_type, status, confidence, ip_address)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (best_match['user_id'], 'login', 'success', highest_confidence, client_ip))
-            
-            conn.commit()
-            conn.close()
-            
-            logger.info(f"Face recognized: {best_match['name']} ({highest_confidence:.2f}%)")
-            
-            return jsonify({
-                'success': True,
-                'user_id': best_match['user_id'],
-                'user_name': best_match['name'],
-                'department': best_match['department'],
-                'confidence': round(highest_confidence, 2)
-            })
-        else:
-            # Failed recognition
-            cursor.execute('''
-                INSERT INTO login_history (user_id, action_type, status, confidence, ip_address)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (None, 'login', 'failed', highest_confidence, client_ip))
-            
-            conn.commit()
-            conn.close()
-            
-            logger.info(f"Face not recognized. Best match: {highest_confidence:.2f}%")
-            
-            return jsonify({
-                'success': False,
-                'error': 'Face not recognized',
-                'best_match_confidence': round(highest_confidence, 2) if highest_confidence > 0 else 0
-            })
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"Face recognized (simulated): {name} ({confidence}%)")
+        
+        return jsonify({
+            'success': True,
+            'user_id': user_id,
+            'user_name': name,
+            'department': department,
+            'confidence': confidence,
+            'message': 'Simulated recognition (DeepFace disabled for testing)'
+        })
         
     except Exception as e:
         logger.error(f"Error in recognize_face: {str(e)}")
@@ -450,7 +319,7 @@ if __name__ == '__main__':
     # Get port from environment variable (Railway uses this)
     port = int(os.environ.get('PORT', 5000))
     
-    logger.info(f"Starting Face Recognition Server on port {port}")
-    logger.info(f"DeepFace available: {DEEPFACE_AVAILABLE}")
+    logger.info(f"Starting Simplified Face Recognition Server on port {port}")
+    logger.info("Note: This version runs without DeepFace for testing purposes")
     
     app.run(host='0.0.0.0', port=port, debug=False) 
