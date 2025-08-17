@@ -1,9 +1,14 @@
+import os
+import sys
+
+# Add system path for proper imports
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import sqlite3
 import base64
 import io
-import os
 import numpy as np
 from PIL import Image
 import uuid
@@ -11,19 +16,32 @@ import logging
 from datetime import datetime
 import hashlib
 
-# Import deepface
+# Import deepface with better error handling
 try:
     from deepface import DeepFace
-except ImportError:
-    print("DeepFace not installed. Installing...")
-    os.system("pip install deepface")
-    from deepface import DeepFace
+    DEEPFACE_AVAILABLE = True
+    print("✅ DeepFace imported successfully")
+except ImportError as e:
+    print(f"⚠️ DeepFace not available: {e}")
+    print("🔄 Installing DeepFace...")
+    try:
+        import subprocess
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "deepface"])
+        from deepface import DeepFace
+        DEEPFACE_AVAILABLE = True
+        print("✅ DeepFace installed and imported successfully")
+    except Exception as install_error:
+        print(f"❌ Failed to install DeepFace: {install_error}")
+        DEEPFACE_AVAILABLE = False
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for cross-origin requests
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 # Database configuration
@@ -35,50 +53,55 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 def init_database():
     """Initialize SQLite database with required tables"""
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-    
-    # Users table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            department TEXT,
-            email TEXT UNIQUE,
-            face_image_path TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Face encodings table (for backup/comparison)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS face_encodings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            encoding_hash TEXT,
-            model_name TEXT DEFAULT 'VGG-Face',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id)
-        )
-    ''')
-    
-    # Login history
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS login_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            action_type TEXT DEFAULT 'login',
-            status TEXT,
-            confidence REAL,
-            ip_address TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id)
-        )
-    ''')
-    
-    conn.commit()
-    conn.close()
-    logger.info("Database initialized successfully")
+    try:
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        
+        # Users table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                department TEXT,
+                email TEXT UNIQUE,
+                face_image_path TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Face encodings table (for backup/comparison)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS face_encodings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                encoding_hash TEXT,
+                model_name TEXT DEFAULT 'VGG-Face',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        ''')
+        
+        # Login history
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS login_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                action_type TEXT DEFAULT 'login',
+                status TEXT,
+                confidence REAL,
+                ip_address TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        ''')
+        
+        conn.commit()
+        conn.close()
+        logger.info("Database initialized successfully")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}")
+        return False
 
 def base64_to_image(base64_string):
     """Convert base64 string to PIL Image"""
@@ -117,6 +140,7 @@ def health_check():
         'status': 'healthy',
         'service': 'Face Recognition Server',
         'version': '1.0.0',
+        'deepface_available': DEEPFACE_AVAILABLE,
         'timestamp': datetime.now().isoformat()
     })
 
@@ -165,18 +189,19 @@ def register_user():
             UPDATE users SET face_image_path = ? WHERE id = ?
         ''', (image_path, user_id))
         
-        # Generate face encoding hash for quick comparison
-        try:
-            # Use DeepFace to analyze the face
-            analysis = DeepFace.represent(img_path=image_path, model_name='VGG-Face')
-            encoding_hash = hashlib.md5(str(analysis[0]['embedding']).encode()).hexdigest()
-            
-            cursor.execute('''
-                INSERT INTO face_encodings (user_id, encoding_hash, model_name)
-                VALUES (?, ?, ?)
-            ''', (user_id, encoding_hash, 'VGG-Face'))
-        except Exception as e:
-            logger.warning(f"Could not generate face encoding: {str(e)}")
+        # Generate face encoding hash if DeepFace is available
+        if DEEPFACE_AVAILABLE:
+            try:
+                # Use DeepFace to analyze the face
+                analysis = DeepFace.represent(img_path=image_path, model_name='VGG-Face')
+                encoding_hash = hashlib.md5(str(analysis[0]['embedding']).encode()).hexdigest()
+                
+                cursor.execute('''
+                    INSERT INTO face_encodings (user_id, encoding_hash, model_name)
+                    VALUES (?, ?, ?)
+                ''', (user_id, encoding_hash, 'VGG-Face'))
+            except Exception as e:
+                logger.warning(f"Could not generate face encoding: {str(e)}")
         
         conn.commit()
         conn.close()
@@ -193,12 +218,17 @@ def register_user():
         
     except Exception as e:
         logger.error(f"Error in register_user: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
 
 @app.route('/api/auth/recognize', methods=['POST'])
 def recognize_face():
     """Recognize face from uploaded image"""
     try:
+        if not DEEPFACE_AVAILABLE:
+            return jsonify({
+                'error': 'Face recognition not available - DeepFace not installed'
+            }), 503
+            
         data = request.get_json()
         
         if not data:
@@ -331,7 +361,7 @@ def recognize_face():
         
     except Exception as e:
         logger.error(f"Error in recognize_face: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
 
 @app.route('/api/users', methods=['GET'])
 def get_users():
@@ -413,10 +443,14 @@ def get_login_history():
 
 if __name__ == '__main__':
     # Initialize database
-    init_database()
+    if not init_database():
+        logger.error("Failed to initialize database. Exiting...")
+        sys.exit(1)
     
     # Get port from environment variable (Railway uses this)
     port = int(os.environ.get('PORT', 5000))
     
     logger.info(f"Starting Face Recognition Server on port {port}")
+    logger.info(f"DeepFace available: {DEEPFACE_AVAILABLE}")
+    
     app.run(host='0.0.0.0', port=port, debug=False) 
