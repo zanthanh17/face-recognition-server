@@ -1,0 +1,12 @@
+{"ts": 1755623714, "device_id": "local-pc", "distance": 0.020825505256652832, "matched": true, "user_id": "7ef5b6d6-2d23-4b67-86ea-5ceae7758acc", "name": "Alice Local"}
+{"ts": 1755623856, "device_id": "local-test", "distance": 0.10539472103118896, "matched": true, "user_id": "7ef5b6d6-2d23-4b67-86ea-5ceae7758acc", "name": "Alice Local"}
+{"ts": 1755623856, "device_id": "local-test", "distance": 0.11119145154953003, "matched": true, "user_id": "7ef5b6d6-2d23-4b67-86ea-5ceae7758acc", "name": "Alice Local"}
+{"ts": 1755623856, "device_id": "local-test", "distance": 0.11656951904296875, "matched": true, "user_id": "7ef5b6d6-2d23-4b67-86ea-5ceae7758acc", "name": "Alice Local"}
+{"ts": 1755623856, "device_id": "local-test", "distance": 0.102730393409729, "matched": true, "user_id": "7ef5b6d6-2d23-4b67-86ea-5ceae7758acc", "name": "Alice Local"}
+{"ts": 1755623856, "device_id": "local-test", "distance": 0.10254126787185669, "matched": true, "user_id": "7ef5b6d6-2d23-4b67-86ea-5ceae7758acc", "name": "Alice Local"}
+{"ts": 1755624405, "device_id": "local-pc", "distance": 0.1919652223587036, "matched": true, "user_id": "cbd66e6a-7d34-4ee9-90ca-eee3e0630f2d", "name": "Charlie Insight"}
+{"ts": 1755624523, "device_id": "local-pc", "distance": 0.22275573015213013, "matched": true, "user_id": "cbd66e6a-7d34-4ee9-90ca-eee3e0630f2d", "name": "Charlie Insight"}
+{"ts": 1734873600, "user_id": "test-user-123", "name": "Test User", "matched": true, "distance": 0.25, "timestamp": "2025-08-22T15:00:00+07:00", "captured_image": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="}
+{"ts": 1755850000, "user_id": "test-user-456", "name": "Test User with Image", "matched": true, "distance": 0.25, "timestamp": "2025-08-22T15:06:40+07:00", "captured_image": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="}
+{"ts": 1755850100, "user_id": "test-user-789", "name": "Test User Latest", "matched": true, "distance": 0.25, "timestamp": "2025-08-22T15:08:20+07:00", "captured_image": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="}
+{"ts": 1755850200, "user_id": "test-user-final", "name": "Test User Final", "matched": true, "distance": 0.25, "timestamp": "2025-08-22T15:10:00+07:00", "captured_image": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="}

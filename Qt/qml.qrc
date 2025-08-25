@@ -1,0 +1,38 @@
+<RCC>
+    <qresource prefix="/">
+        <file>main.qml</file>
+        <file>ui/pages/Login.qml</file>
+        <file>ui/pages/Setting.qml</file>
+        <file>ui/pages/NetworkSettings.qml</file>
+        <file>ui/pages/History.qml</file>
+        <file>ui/pages/SystemMonitor.qml</file>
+        <file>ui/dialogs/DialogSuccess.qml</file>
+        <file>ui/dialogs/DialogFailed.qml</file>
+        <file>assets/icons/logo.jpg</file>
+        <file>assets/icons/auth.png</file>
+        <file>assets/icons/wifi.png</file>
+        <file>assets/icons/disconnectwifi.png</file>
+        <file>assets/icons/eye_open.png</file>
+        <file>assets/icons/eye_close.png</file>
+        <file>assets/icons/btn_auth.png</file>
+        <file>assets/icons/setting.png</file>
+        <file>assets/icons/face-frame.png</file>
+        <file>assets/icons/success-check.png</file>
+        <file>assets/icons/portrait-circle.png</file>
+        <file>assets/icons/edit_user.png</file>
+        <file>assets/icons/network.png</file>
+        <file>assets/icons/history.png</file>
+        <file>assets/icons/lock.png</file>
+        <file>assets/icons/monitor.png</file>
+        <file>assets/icons/empty_search.png</file>
+        <file>assets/images/user.png</file>
+        <file>assets/images/user_bg.png</file>
+        <file>ui/components/Keyboard.qml</file>
+        <file>ui/components/HeaderBar.qml</file>
+        <file>ui/dialogs/dialog_password_auth.qml</file>
+        <file>ui/pages/SettingAdmin.qml</file>
+        <file>ui/pages_component/EditUser.qml</file>
+        <file>ui/pages_component/UserInfor.qml</file>
+        <file>ui/pages_component/CaptureFace.qml</file>
+    </qresource>
+</RCC>

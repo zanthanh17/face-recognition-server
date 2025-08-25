@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chấm công - FaceLog</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/web/">
+                <i class="fas fa-face-smile me-2"></i>FaceLog
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/web/">
+                            <i class="fas fa-home me-1"></i>Trang chủ
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/web/users.html">
+                            <i class="fas fa-users me-1"></i>Quản lý Users
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/web/attendance.html">
+                            <i class="fas fa-clock me-1"></i>History In/Out
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/web/workhours.html">
+                            <i class="fas fa-calendar-check me-1"></i>Chấm công
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/web/backups.html">
+                            <i class="fas fa-database me-1"></i>Backups
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mt-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1 class="mb-2">
+                            <i class="fas fa-calendar-check me-2"></i>Chấm công
+                        </h1>
+                        <p class="text-muted mb-0">Tính giờ làm việc của users</p>
+                    </div>
+                    <div>
+                        <button class="btn btn-success me-2" onclick="workHoursManager.exportData()">
+                            <i class="fas fa-download me-1"></i>Export CSV
+                        </button>
+                        <button class="btn btn-primary" onclick="workHoursManager.refreshData()">
+                            <i class="fas fa-sync-alt me-1"></i>Refresh
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-users fa-2x text-primary mb-2"></i>
+                        <h4 id="total-workers">0</h4>
+                        <p class="text-muted mb-0">Tổng workers</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-clock fa-2x text-success mb-2"></i>
+                        <h4 id="total-hours">0h</h4>
+                        <p class="text-muted mb-0">Tổng giờ làm</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-user-check fa-2x text-info mb-2"></i>
+                        <h4 id="active-workers">0</h4>
+                        <p class="text-muted mb-0">Workers hôm nay</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-chart-line fa-2x text-warning mb-2"></i>
+                        <h4 id="avg-hours">0h</h4>
+                        <p class="text-muted mb-0">Trung bình/người</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Date Selection -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <label class="form-label">Chọn ngày</label>
+                <input type="date" class="form-control" id="selectedDate" value="">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Từ ngày</label>
+                <input type="date" class="form-control" id="startDate">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Đến ngày</label>
+                <input type="date" class="form-control" id="endDate">
+            </div>
+        </div>
+
+        <!-- View Toggle -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="btn-group" role="group">
+                    <input type="radio" class="btn-check" name="viewMode" id="dailyView" value="daily" checked>
+                    <label class="btn btn-outline-primary" for="dailyView">
+                        <i class="fas fa-calendar-day me-1"></i>Xem theo ngày
+                    </label>
+                    
+                    <input type="radio" class="btn-check" name="viewMode" id="summaryView" value="summary">
+                    <label class="btn btn-outline-primary" for="summaryView">
+                        <i class="fas fa-calendar-week me-1"></i>Xem tổng hợp
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Work Hours Table -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-list me-2"></i>Báo cáo giờ làm việc
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="workHoursTable">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Ngày</th>
+                                <th>Check In đầu</th>
+                                <th>Check Out cuối</th>
+                                <th>Tổng giờ</th>
+                                <th>Số lần quét</th>
+                                <th>Trạng thái</th>
+                            </tr>
+                        </thead>
+                        <tbody id="workHoursTableBody">
+                            <tr>
+                                <td colspan="7" class="text-center">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-bar me-2"></i>Giờ làm theo user
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="userHoursChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-line me-2"></i>Xu hướng giờ làm
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="trendChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-white text-center py-4 mt-5">
+        <div class="container">
+            <p class="mb-0">
+                <i class="fas fa-code me-1"></i>
+                FaceLog System - Powered by FastAPI & Bootstrap 5
+            </p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="js/app.js?v=1.1"></script>
+    <script src="js/workhours.js?v=1.1"></script>
+</body>
+</html>

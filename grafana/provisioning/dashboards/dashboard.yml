@@ -1,0 +1,17 @@
+apiVersion: 1
+
+providers:
+  - name: Facelog
+    orgId: 1
+    folder: Facelog
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    options:
+      path: /etc/grafana/dashboards
+
+
+
+
+
+
