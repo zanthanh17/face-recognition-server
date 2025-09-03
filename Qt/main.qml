@@ -1,16 +1,18 @@
 // main.qml
-import QtQuick 2.15
-import QtQuick.Window 2.15
-import QtQuick.Controls 2.15
-import QtQuick.Layouts 1.15
+import QtQuick
+import QtQuick.Window
+import QtQuick.Controls
+import QtQuick.Layouts
 
 Window {
     id: root
-    width: 360
-    height: 640
+    width: 480
+    height: 800
     visible: true
     color: "#f4e8e8"
     title: qsTr("Facelog")
+    // Fullscreen for embedded display
+    // visibility: Window.FullScreen
 
     // Global WiFi state management
     property bool globalWifiConnected: false
@@ -19,12 +21,12 @@ Window {
     Component.onCompleted: {
         // Check initial WiFi status from backend
         globalWifiConnected = backend.getWifiConnected()
-        console.log("Initial WiFi status:", globalWifiConnected)
+        // console.log("Initial WiFi status:", globalWifiConnected) // Disabled for RPi optimization
     }
     
-    // Timer to periodically check WiFi status
+    // Timer to periodically check WiFi status (optimized for RPi)
     Timer {
-        interval: 5000 // Check every 5 seconds
+        interval: 10000 // Check every 10 seconds instead of 5 for RPi optimization
         running: true
         repeat: true
         onTriggered: {
@@ -33,13 +35,13 @@ Window {
                 let currentStatus = backend.getWifiConnected()
                 if (currentStatus !== globalWifiConnected) {
                     globalWifiConnected = currentStatus
-                    console.log("WiFi status updated:", globalWifiConnected)
+                    // console.log("WiFi status updated:", globalWifiConnected) // Disabled for RPi optimization
                 }
             } else {
                 // WiFi radio is disabled, so we're definitely not connected
                 if (globalWifiConnected !== false) {
                     globalWifiConnected = false
-                    console.log("WiFi radio disabled, setting status to disconnected")
+                    // console.log("WiFi radio disabled, setting status to disconnected") // Disabled for RPi optimization
                 }
             }
         }
@@ -50,7 +52,32 @@ Window {
     StackView {
         id: stack
         anchors.fill: parent
-        initialItem: loginComponent
+        initialItem: homeComponent
+    }
+
+    // ---------- Home ----------
+    Component {
+        id: homeComponent
+        Item {
+            Loader {
+                id: homeLoader
+                anchors.fill: parent
+                source: "qrc:/ui/pages/Home.qml"
+            }
+            Connections {
+                target: homeLoader.item
+                ignoreUnknownSignals: true
+                function onOpenSettingsRequested() {
+                    if (homeLoader.item && homeLoader.item.deactivateCamera)
+                        homeLoader.item.deactivateCamera()
+                    stack.push(settingsComponent)
+                }
+                function onStartFaceRecognition() {
+                    // console.log("Starting face recognition - switching to Login page") // Disabled for RPi optimization
+                    stack.push(loginComponent)
+                }
+            }
+        }
     }
 
     // ---------- Login ----------
@@ -69,6 +96,10 @@ Window {
                     if (loginLoader.item && loginLoader.item.deactivateCamera)
                         loginLoader.item.deactivateCamera()
                     stack.push(settingsComponent)
+                }
+                function onBackToHomeRequested() {
+                    // console.log("Going back to Home from Login") // Disabled for RPi optimization
+                    stack.pop()
                 }
             }
         }
@@ -91,6 +122,11 @@ Window {
                 ignoreUnknownSignals: true
                 function onBackRequested() { stack.pop() }
                 function onPasswordAuthenticated() { stack.push(settingAdminComponent) }
+                function onLogoClicked() { 
+                    // console.log("Logo clicked - going back to Home") // Disabled for RPi optimization
+                    stack.clear()
+                    stack.push(homeComponent)
+                }
             }
         }
     }
@@ -122,6 +158,11 @@ Window {
                 }
                 function onMonitorClicked() {
                     stack.push(systemMonitorComponent)
+                }
+                function onLogoClicked() { 
+                    // console.log("Logo clicked - going back to Home") // Disabled for RPi optimization
+                    stack.clear()
+                    stack.push(homeComponent)
                 }
                 // function onBoxSettingsClicked() { stack.push(boxComponent) }
                 // function onLogsClicked() { stack.push(logsComponent) }
@@ -265,7 +306,7 @@ Window {
                 function onBackRequested() { stack.pop() }
                 function onWifiConfigured(success) {
                     root.globalWifiConnected = success
-                    console.log("WiFi status changed:", success)
+                    // console.log("WiFi status changed:", success) // Disabled for RPi optimization
                 }
             }
         }

@@ -29,12 +29,11 @@ Popup {
             Rectangle { anchors.fill: parent; radius: width/2; color: "#E0313177" }
             Image {
                 anchors.centerIn: parent
-                source: "qrc:/assets/icons/portrait-circle.png"
+                source: "qrc:/assets/icons/failed.png"
                 width: 56; height: 56; fillMode: Image.PreserveAspectFit
-                visible: status === Image.Ready
             }
             Text { anchors.centerIn: parent; text: "✗"; font.pixelSize: 42; color: "#B02A37";
-                   visible: !parent.children[1].visible }
+                   visible: false }
         }
 
         // Title
@@ -56,7 +55,8 @@ Popup {
                 border.color: "#DC3545"; border.width: 2
                 Image {
                     anchors.fill: parent
-                    source: dlg.avatar; fillMode: Image.PreserveAspectFill
+                    source: dlg.avatar
+                    clip: true
                 }
             }
 

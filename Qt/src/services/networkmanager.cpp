@@ -1,4 +1,5 @@
 #include "networkmanager.h"
+#include "../debug_config.h"
 #include <QDebug>
 #include <QVariantMap>
 #include <QProcess>
@@ -9,7 +10,10 @@
 NetworkManager::NetworkManager(QObject *parent)
     : QObject(parent)
     , m_isConnected(false)
+    , m_lastWifiRadioStatus(false)
 {
+    // Initialize WiFi radio status
+    m_lastWifiRadioStatus = checkWifiRadioStatus();
 }
 
 NetworkManager::~NetworkManager()
@@ -66,22 +70,22 @@ QVariantList NetworkManager::getAvailableNetworks()
             network["secured"] = (security != "--" && security != "*");
             
             networks.append(network);
-            qDebug() << "Found network:" << ssid << "Signal:" << signal << "Connected:" << isConnected;
+            RPI_DEBUG_VAR("Found network", ssid << "Signal:" << signal << "Connected:" << isConnected);
         }
     }
     
     // If no networks found, return empty list (no mock data)
     if (networks.isEmpty()) {
-        qDebug() << "No WiFi networks found";
+        RPI_DEBUG_MSG("No WiFi networks found");
     }
     
-    qDebug() << "Found" << networks.size() << "WiFi networks";
+    RPI_DEBUG_VAR("Found WiFi networks", networks.size());
     return networks;
 }
 
 bool NetworkManager::connectToNetwork(const QString &ssid, const QString &password)
 {
-    qDebug() << "Attempting to connect to network:" << ssid;
+    RPI_DEBUG_VAR("Attempting to connect to network", ssid);
     
     // Use nmcli to connect to network (Linux)
     QProcess process;
@@ -103,11 +107,11 @@ bool NetworkManager::connectToNetwork(const QString &ssid, const QString &passwo
         m_currentNetwork = ssid;
         m_lastConnectedNetwork = ssid; // Save for auto-reconnect
         emit networkConnected(ssid);
-        qDebug() << "Successfully connected to:" << ssid;
+        RPI_DEBUG_VAR("Successfully connected to", ssid);
         return true;
     } else {
         QString error = QString::fromLocal8Bit(process.readAllStandardError());
-        qDebug() << "Failed to connect:" << error;
+        RPI_ERROR("Failed to connect:" << error);
         emit connectionFailed("Failed to connect to network: " + error);
         return false;
     }
@@ -119,7 +123,7 @@ bool NetworkManager::disconnectFromNetwork()
         return true;
     }
 
-    qDebug() << "Disconnecting from network:" << m_currentNetwork;
+    RPI_DEBUG_VAR("Disconnecting from network", m_currentNetwork);
     
     // Disconnect using nmcli (Linux)
     QProcess process;
@@ -131,11 +135,26 @@ bool NetworkManager::disconnectFromNetwork()
     m_currentNetwork.clear();
     emit networkDisconnected();
     
-    qDebug() << "Disconnected from:" << previousNetwork;
+    RPI_DEBUG_VAR("Disconnected from", previousNetwork);
     return true;
 }
 
 bool NetworkManager::isWifiEnabled() const
+{
+    // Check current WiFi radio status
+    bool currentStatus = checkWifiRadioStatus();
+    
+    // Only log if status changed (non-const cast to update member)
+    NetworkManager* self = const_cast<NetworkManager*>(this);
+    if (self->m_lastWifiRadioStatus != currentStatus) {
+        RPI_DEBUG_VAR("WiFi radio status changed to", currentStatus ? "enabled" : "disabled");
+        self->m_lastWifiRadioStatus = currentStatus;
+    }
+    
+    return currentStatus;
+}
+
+bool NetworkManager::checkWifiRadioStatus() const
 {
     // Check if WiFi radio is enabled using nmcli
     QProcess process;
@@ -143,7 +162,6 @@ bool NetworkManager::isWifiEnabled() const
     process.waitForFinished();
     
     QString output = QString::fromLocal8Bit(process.readAllStandardOutput());
-    qDebug() << "WiFi radio status:" << output.trimmed();
     
     // nmcli radio wifi returns "enabled" or "disabled"
     return output.trimmed().toLower() == "enabled";
@@ -206,11 +224,11 @@ QString NetworkManager::getCurrentNetwork() const
 bool NetworkManager::reconnectToLastNetwork()
 {
     if (m_lastConnectedNetwork.isEmpty()) {
-        qDebug() << "No last connected network to reconnect to";
+        RPI_DEBUG_MSG("No last connected network to reconnect to");
         return false;
     }
     
-    qDebug() << "Attempting to reconnect to last network:" << m_lastConnectedNetwork;
+    RPI_DEBUG_VAR("Attempting to reconnect to last network", m_lastConnectedNetwork);
     
     // Try to reconnect to the last network (without password for now)
     // In a real implementation, you might want to store the password securely
@@ -222,18 +240,18 @@ bool NetworkManager::reconnectToLastNetwork()
         m_isConnected = true;
         m_currentNetwork = m_lastConnectedNetwork;
         emit networkConnected(m_lastConnectedNetwork);
-        qDebug() << "Successfully reconnected to:" << m_lastConnectedNetwork;
+        RPI_DEBUG_VAR("Successfully reconnected to", m_lastConnectedNetwork);
         return true;
     } else {
         QString error = QString::fromLocal8Bit(process.readAllStandardError());
-        qDebug() << "Failed to reconnect to last network:" << error;
+        RPI_ERROR("Failed to reconnect to last network:" << error);
         return false;
     }
 }
 
 bool NetworkManager::setWifiEnabled(bool enabled)
 {
-    qDebug() << "Setting WiFi enabled:" << enabled;
+    RPI_DEBUG_VAR("Setting WiFi enabled", enabled);
     
     if (enabled) {
         // Enable WiFi using nmcli (Linux)
@@ -242,11 +260,12 @@ bool NetworkManager::setWifiEnabled(bool enabled)
         process.waitForFinished();
         
         if (process.exitCode() == 0) {
-            qDebug() << "WiFi enabled successfully";
+            RPI_DEBUG_MSG("WiFi enabled successfully");
+            m_lastWifiRadioStatus = true;
             return true;
         } else {
             QString error = QString::fromLocal8Bit(process.readAllStandardError());
-            qDebug() << "Failed to enable WiFi:" << error;
+            RPI_ERROR("Failed to enable WiFi:" << error);
             return false;
         }
     } else {
@@ -256,7 +275,8 @@ bool NetworkManager::setWifiEnabled(bool enabled)
         process.waitForFinished();
         
         if (process.exitCode() == 0) {
-            qDebug() << "WiFi disabled successfully";
+            RPI_DEBUG_MSG("WiFi disabled successfully");
+            m_lastWifiRadioStatus = false;
             // Clear connection state when WiFi is disabled
             m_isConnected = false;
             m_currentNetwork.clear();
@@ -264,7 +284,7 @@ bool NetworkManager::setWifiEnabled(bool enabled)
             return true;
         } else {
             QString error = QString::fromLocal8Bit(process.readAllStandardError());
-            qDebug() << "Failed to disable WiFi:" << error;
+            RPI_ERROR("Failed to disable WiFi:" << error);
             return false;
         }
     }

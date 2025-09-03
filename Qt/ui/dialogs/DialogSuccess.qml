@@ -31,10 +31,9 @@ Popup {
                 anchors.centerIn: parent
                 source: "qrc:/assets/icons/success-check.png"
                 width: 56; height: 56; fillMode: Image.PreserveAspectFit
-                visible: status === Image.Ready
             }
             Text { anchors.centerIn: parent; text: "✓"; font.pixelSize: 42; color: "#1E7E34";
-                   visible: !parent.children[1].visible }
+                   visible: false }
         }
 
         // Title "Successful"
@@ -56,7 +55,8 @@ Popup {
                 border.color: "#2ECC71"; border.width: 2
                 Image {
                     anchors.fill: parent
-                    source: dlg.avatar; fillMode: Image.PreserveAspectFill
+                    source: dlg.avatar
+                    clip: true
                 }
             }
 

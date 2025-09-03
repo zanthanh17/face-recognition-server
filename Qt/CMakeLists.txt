@@ -11,6 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Find Qt packages
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Quick)
+set(QT_VERSION_MAJOR 6)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Quick Sql Network Multimedia)
 
 # Find OpenCV for face recognition (optional for now)
@@ -24,13 +25,12 @@ if(OpenCV_FOUND)
     include_directories(${OpenCV_INCLUDE_DIRS})
 endif()
 
+# Add source directory to include path for debug_config.h
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
+
 set(PROJECT_SOURCES
         main.cpp
         qml.qrc
-        src/database/databasemanager.cpp
-        src/database/databasemanager.h
-        src/services/usermanager.cpp
-        src/services/usermanager.h
         src/services/cameramanager.cpp
         src/services/cameramanager.h
         src/services/systemmonitor.cpp
@@ -79,7 +79,7 @@ endif()
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
 # explicit, fixed bundle identifier manually though.
-if(${QT_VERSION} VERSION_LESS 6.1.0)
+if(${QT_VERSION_MAJOR} LESS 6)
   set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.pbl5_facelogin)
 endif()
 set_target_properties(pbl5_facelogin PROPERTIES

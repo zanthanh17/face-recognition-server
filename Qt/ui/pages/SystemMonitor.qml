@@ -40,18 +40,16 @@ Item {
         spacing: 8
         height: 48
 
-        ToolButton {
+        Image {
             Layout.preferredWidth: 40
             Layout.preferredHeight: 40
-            background: Rectangle { radius: width/2; color: "#ECEFF4"; border.color: "#D2D7DE" }
-            contentItem: Label {
-                text: "\u2039"
-                font.pixelSize: 22
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                color: "#333"
+            source: "qrc:/assets/icons/btn_back.png"
+            fillMode: Image.PreserveAspectFit
+            
+            MouseArea {
+                anchors.fill: parent
+                onClicked: monitorPage.backRequested()
             }
-            onClicked: monitorPage.backRequested()
         }
 
         Label {

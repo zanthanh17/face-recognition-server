@@ -5,10 +5,6 @@
 #include <QByteArray>
 #include <QString>
 #include <QImage>
-#include <QCamera>
-#include <QMediaCaptureSession>
-#include <QImageCapture>
-#include <QMediaDevices>
 
 class CameraManager : public QObject
 {
@@ -33,14 +29,11 @@ signals:
 
 private slots:
     void onImageCaptured(int id, const QImage &image);
-    void onImageCaptureError(int id, QImageCapture::Error error, const QString &errorString);
+    void onImageCaptureError(int id, int error, const QString &errorString);
 
 private:
     bool m_cameraAvailable;
     bool m_cameraRunning;
-    QCamera *m_camera;
-    QMediaCaptureSession *m_captureSession;
-    QImageCapture *m_imageCapture;
     QByteArray m_lastCapturedImage;
     bool m_captureInProgress;
 };

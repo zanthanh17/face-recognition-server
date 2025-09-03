@@ -22,6 +22,11 @@ Item {
     Camera {
         id: cam
         active: true
+        cameraDevice: CameraDevice {
+            id: cameraDevice
+            // Try to use the first available camera device
+            // On RPi, this should be /dev/video0
+        }
     }
 
     // Camera preview only - no capture functionality
@@ -30,6 +35,11 @@ Item {
     // Handle page visibility changes
     onVisibleChanged: {
         console.log("CaptureFace page visibility:", visible)
+        if (visible) {
+            console.log("Camera device:", cam.cameraDevice ? cam.cameraDevice.description : "None")
+            console.log("Camera active:", cam.active)
+            console.log("Camera error:", cam.error)
+        }
     }
 
     // ===== UI =====
@@ -46,15 +56,20 @@ Item {
     }
 
     // Back
-    ToolButton {
+    Image {
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.margins: 12
         z: 10
-        background: Rectangle { radius: 16; color: "#ECEFF4"; border.color: "#D2D7DE" }
-        contentItem: Label { text: "\u2039"; font.pixelSize: 22; color: "#333"; padding: 8;
-            horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-        onClicked: page.backRequested()
+        width: 40
+        height: 40
+        source: "qrc:/assets/icons/btn_back.png"
+        fillMode: Image.PreserveAspectFit
+        
+        MouseArea {
+            anchors.fill: parent
+            onClicked: page.backRequested()
+        }
     }
 
     // Frame overlay

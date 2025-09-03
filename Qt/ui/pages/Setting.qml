@@ -7,6 +7,7 @@ Item {
     id: settingPage
     signal backRequested()
     signal passwordAuthenticated()
+    signal logoClicked()
     
     property bool wifiConnected: true // Will be set from parent
 
@@ -16,6 +17,11 @@ Item {
         anchors.right: parent.right
         anchors.top: parent.top
         wifiConnected: settingPage.wifiConnected
+        
+        onLeftClicked: {
+            // console.log("Logo clicked in Setting - going back to Home") // Disabled for RPi optimization
+            settingPage.logoClicked()
+        }
     }
 
     RowLayout {
@@ -27,18 +33,16 @@ Item {
         spacing: 8
         height: 48
 
-        ToolButton {
+        Image {
             Layout.preferredWidth: 40
             Layout.preferredHeight: 40
-            background: Rectangle { radius: width/2; color: "#ECEFF4"; border.color: "#D2D7DE" }
-            contentItem: Label {
-                text: "\u2039"
-                font.pixelSize: 22
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                color: "#333"
+            source: "qrc:/assets/icons/btn_back.png"
+            fillMode: Image.PreserveAspectFit
+            
+            MouseArea {
+                anchors.fill: parent
+                onClicked: settingPage.backRequested()
             }
-            onClicked: settingPage.backRequested()
         }
 
         Label {
@@ -93,12 +97,12 @@ Item {
                 item.doneClicked.connect(function() {
                     var enteredPassword = item.password
                     if (enteredPassword === "123456") {
-                        console.log("Password correct!")
+                        // console.log("Password correct!") // Disabled for RPi optimization
                         item.hide()
                         passwordDialogLoader.active = false
                         settingPage.passwordAuthenticated() // Emit signal for successful authentication
                     } else {
-                        console.log("Incorrect password!")
+                        // console.log("Incorrect password!") // Disabled for RPi optimization
                         // Show error message
                         errorMessage.visible = true
                         errorTimer.start()

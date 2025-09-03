@@ -10,8 +10,6 @@
 #include <QImage>
 
 // Forward declarations
-class DatabaseManager;
-class UserManager;
 class CameraManager;
 class SystemMonitor;
 class NetworkManager;
@@ -139,8 +137,6 @@ signals:
     void unsyncedLogsChanged();
 
 private:
-    DatabaseManager *m_databaseManager;
-    UserManager *m_userManager;
     CameraManager *m_cameraManager;
     SystemMonitor *m_systemMonitor;
     NetworkManager *m_networkManager;

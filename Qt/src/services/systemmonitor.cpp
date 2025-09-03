@@ -1,4 +1,5 @@
 #include "systemmonitor.h"
+#include "../debug_config.h"
 #include <QDebug>
 #include <QDateTime>
 #include <QProcess>
@@ -27,17 +28,17 @@ void SystemMonitor::startMonitoring()
         return;
     }
 
-    // Update metrics every 2 seconds
-    m_updateTimer->start(2000);
+    // Update metrics every 5 seconds instead of 2 seconds for RPi optimization
+    m_updateTimer->start(5000);
     updateMetrics(); // Initial update
-    qDebug() << "System monitoring started";
+    RPI_DEBUG_MSG("System monitoring started (optimized for RPi)");
 }
 
 void SystemMonitor::stopMonitoring()
 {
     if (m_updateTimer->isActive()) {
         m_updateTimer->stop();
-        qDebug() << "System monitoring stopped";
+        RPI_DEBUG_MSG("System monitoring stopped");
     }
 }
 
@@ -73,9 +74,9 @@ void SystemMonitor::updateMetrics()
     
     // qDebug() << "Emitting metricsUpdated signal with data:" << m_currentMetrics; // Disabled to reduce log noise
     
-    // Get additional system info (update less frequently)
+    // Get additional system info (update less frequently for RPi optimization)
     static int infoCounter = 0;
-    if (infoCounter % 10 == 0) { // Update every 20 seconds (10 * 2 seconds)
+    if (infoCounter % 6 == 0) { // Update every 30 seconds (6 * 5 seconds) instead of 20 seconds
         m_currentMetrics["systemInfo"] = getSystemInfo();
         m_currentMetrics["uptime"] = getUptime();
         m_currentMetrics["loadAverage"] = getLoadAverage();

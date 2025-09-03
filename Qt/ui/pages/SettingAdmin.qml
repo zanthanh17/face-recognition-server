@@ -14,6 +14,7 @@ Item {
     signal monitorClicked()
     signal boxSettingsClicked()
     signal logsClicked()
+    signal logoClicked()
     
     property bool wifiConnected: true // Will be set from parent
 
@@ -24,6 +25,11 @@ Item {
         anchors.right: parent.right
         anchors.top: parent.top
         wifiConnected: adminPage.wifiConnected
+        
+        onLeftClicked: {
+            // console.log("Logo clicked in SettingAdmin - going back to Home") // Disabled for RPi optimization
+            adminPage.logoClicked()
+        }
     }
 
     // ===== Tiêu đề + avatar + nút back =====
@@ -37,18 +43,16 @@ Item {
         height: 56
 
         // nút back tròn
-        ToolButton {
+        Image {
             Layout.preferredWidth: 40
             Layout.preferredHeight: 40
-            background: Rectangle { radius: width/2; color: "#ECEFF4"; border.color: "#D2D7DE" }
-            contentItem: Label {
-                text: "\u2039" // ‹
-                font.pixelSize: 22
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                color: "#333"
+            source: "qrc:/assets/icons/btn_back.png"
+            fillMode: Image.PreserveAspectFit
+            
+            MouseArea {
+                anchors.fill: parent
+                onClicked: adminPage.backRequested()
             }
-            onClicked: adminPage.backRequested()
         }
 
         // avatar + greeting

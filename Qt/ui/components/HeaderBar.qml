@@ -4,7 +4,7 @@ import QtQuick.Layouts 1.15
 
 Item {
     id: root
-    width: parent ? parent.width : 400
+    width: parent ? parent.width : 800
     height: 40
 
     property alias logoSource: logo.source
@@ -16,9 +16,17 @@ Item {
     signal leftClicked()
     signal rightClicked()
 
+    // Background màu trắng với border
+    Rectangle {
+        anchors.fill: parent
+        color: "#FFFFFF"
+        border.color: "#E0E0E0"
+        border.width: 1
+    }
+
     RowLayout {
         anchors.fill: parent
-        anchors.margins: 6
+        anchors.margins: 8
 
         // Logo bên trái
         Image {
@@ -38,7 +46,7 @@ Item {
             id: clockLabel
             text: Qt.formatTime(new Date(), "h:mm AP")
             font.bold: true
-            font.pointSize: 14
+            font.pixelSize: 16
             Layout.alignment: Qt.AlignVCenter
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignHCenter
@@ -56,8 +64,8 @@ Item {
             id: wifiImg
             source: root.wifiIcon
             fillMode: Image.PreserveAspectFit
-            Layout.preferredWidth: 28
-            Layout.preferredHeight: 28
+            Layout.preferredWidth: 32
+            Layout.preferredHeight: 32
             MouseArea {
                 anchors.fill: parent
                 onClicked: root.rightClicked()

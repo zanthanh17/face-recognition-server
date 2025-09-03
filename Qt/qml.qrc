@@ -18,7 +18,7 @@
         <file>assets/icons/setting.png</file>
         <file>assets/icons/face-frame.png</file>
         <file>assets/icons/success-check.png</file>
-        <file>assets/icons/portrait-circle.png</file>
+        <file>assets/icons/failed.png</file>
         <file>assets/icons/edit_user.png</file>
         <file>assets/icons/network.png</file>
         <file>assets/icons/history.png</file>
@@ -34,5 +34,8 @@
         <file>ui/pages_component/EditUser.qml</file>
         <file>ui/pages_component/UserInfor.qml</file>
         <file>ui/pages_component/CaptureFace.qml</file>
+        <file>ui/pages/Home.qml</file>
+        <file>assets/images/background.jpg</file>
+        <file>assets/icons/btn_back.png</file>
     </qresource>
 </RCC>

@@ -1,4 +1,5 @@
 #include "cachemanager.h"
+#include "../debug_config.h"
 #include <QDateTime>
 
 CacheManager::CacheManager(QObject *parent)
@@ -10,7 +11,7 @@ CacheManager::CacheManager(QObject *parent)
     m_logsCacheFile = m_cacheDir + "/logs_cache.json";
     
     ensureCacheDir();
-    qDebug() << "CacheManager initialized, cache dir:" << m_cacheDir;
+    RPI_DEBUG_VAR("CacheManager initialized, cache dir", m_cacheDir);
 }
 
 CacheManager::~CacheManager()
@@ -22,7 +23,7 @@ void CacheManager::ensureCacheDir()
     QDir dir;
     if (!dir.exists(m_cacheDir)) {
         dir.mkpath(m_cacheDir);
-        qDebug() << "Created cache directory:" << m_cacheDir;
+        RPI_DEBUG_VAR("Created cache directory", m_cacheDir);
     }
 }
 
@@ -30,7 +31,7 @@ bool CacheManager::saveToFile(const QString &filePath, const QVariant &data)
 {
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly)) {
-        qDebug() << "Failed to open file for writing:" << filePath;
+        RPI_ERROR("Failed to open file for writing:" << filePath);
         return false;
     }
     
@@ -63,12 +64,19 @@ QVariant CacheManager::loadFromFile(const QString &filePath)
 // User cache management
 void CacheManager::cacheUsers(const QVariantList &users)
 {
+    // Limit cache size for RPi optimization - keep only last 50 users
+    QVariantList limitedUsers = users;
+    if (users.size() > 50) {
+        limitedUsers = users.mid(users.size() - 50);
+        RPI_DEBUG_MSG("Limited user cache to 50 users for RPi optimization");
+    }
+    
     QVariantMap cacheData;
     cacheData["timestamp"] = QDateTime::currentDateTime().toString(Qt::ISODate);
-    cacheData["users"] = users;
+    cacheData["users"] = limitedUsers;
     
     if (saveToFile(m_usersCacheFile, cacheData)) {
-        qDebug() << "Cached" << users.size() << "users";
+        RPI_DEBUG_VAR("Cached users (optimized for RPi)", limitedUsers.size());
         emit cacheUpdated();
     }
 }
@@ -94,7 +102,7 @@ QVariantMap CacheManager::getCachedUserById(const QString &userId)
 void CacheManager::clearUserCache()
 {
     QFile::remove(m_usersCacheFile);
-    qDebug() << "User cache cleared";
+    RPI_DEBUG_MSG("User cache cleared");
     emit cacheUpdated();
 }
 
@@ -117,7 +125,7 @@ void CacheManager::cacheLog(const QVariantMap &log)
     logs.append(logWithSync);
     
     if (saveToFile(m_logsCacheFile, logs)) {
-        qDebug() << "Cached log for user:" << log["user_name"].toString();
+        RPI_DEBUG_VAR("Cached log for user", log["user_name"].toString());
         emit unsyncedLogsChanged();
     }
 }
@@ -157,7 +165,7 @@ void CacheManager::markLogSynced(const QString &logId)
     }
     
     if (saveToFile(m_logsCacheFile, logs)) {
-        qDebug() << "Marked log as synced:" << logId;
+        RPI_DEBUG_VAR("Marked log as synced", logId);
         emit unsyncedLogsChanged();
     }
 }
@@ -175,7 +183,7 @@ void CacheManager::clearSyncedLogs()
     }
     
     if (saveToFile(m_logsCacheFile, unsyncedLogs)) {
-        qDebug() << "Cleared synced logs, kept" << unsyncedLogs.size() << "unsynced logs";
+        RPI_DEBUG_VAR("Cleared synced logs, kept unsynced logs", unsyncedLogs.size());
         emit unsyncedLogsChanged();
     }
 }
@@ -203,7 +211,7 @@ void CacheManager::clearAllCache()
 {
     clearUserCache();
     QFile::remove(m_logsCacheFile);
-    qDebug() << "All cache cleared";
+    RPI_DEBUG_MSG("All cache cleared");
     emit cacheUpdated();
     emit unsyncedLogsChanged();
 }

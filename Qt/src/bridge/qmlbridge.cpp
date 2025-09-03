@@ -1,11 +1,10 @@
 #include "qmlbridge.h"
-#include "../database/databasemanager.h"
-#include "../services/usermanager.h"
 #include "../services/cameramanager.h"
 #include "../services/systemmonitor.h"
 #include "../services/networkmanager.h"
 #include "../services/facerecognitionservice.h"
 #include "../services/cachemanager.h"
+#include "../debug_config.h"
 #include <QDateTime>
 #include <QDebug>
 #include <QBuffer>
@@ -16,8 +15,6 @@
 
 QmlBridge::QmlBridge(QObject *parent)
     : QObject(parent)
-    , m_databaseManager(nullptr)
-    , m_userManager(nullptr)
     , m_cameraManager(nullptr)
     , m_systemMonitor(nullptr)
     , m_networkManager(nullptr)
@@ -33,7 +30,7 @@ QmlBridge::QmlBridge(QObject *parent)
     m_cacheManager = new CacheManager(this);
     
     // Start system monitoring
-    // startSystemMonitoring(); // Disabled to reduce log noise
+    startSystemMonitoring(); // Disabled to reduce log noise
     
     // Connect face recognition signals
     connect(m_faceRecognitionService, &FaceRecognitionService::faceRecognized,
@@ -76,7 +73,7 @@ QmlBridge::QmlBridge(QObject *parent)
     connect(m_cacheManager, &CacheManager::unsyncedLogsChanged,
             this, &QmlBridge::unsyncedLogsChanged);
             
-    qDebug() << "QmlBridge initialized - with cache support";
+    RPI_DEBUG_MSG("QmlBridge initialized - with cache support");
 }
 
 QmlBridge::~QmlBridge()
@@ -106,7 +103,7 @@ void QmlBridge::loadUsersFromBackend()
 {
     // Load users from server (async)
     if (m_faceRecognitionService) {
-        qDebug() << "Requesting users from server...";
+        RPI_DEBUG_MSG("Requesting users from server...");
         m_faceRecognitionService->getUsersFromServer();
     }
 }
@@ -116,7 +113,7 @@ void QmlBridge::onUsersUpdated(const QVariantList &users)
     // Called when users are received from server
     m_users = users;
     emit usersChanged();
-    qDebug() << "Updated users list with" << users.size() << "users from server";
+            RPI_DEBUG_VAR("Updated users list with", users.size() << "users from server");
 }
 
 QVariantMap QmlBridge::getUserById(int userId)
@@ -261,7 +258,7 @@ void QmlBridge::loadHistoryData()
 {
     // Load history data from server (async)
     if (m_faceRecognitionService) {
-        qDebug() << "Requesting history data from server...";
+        RPI_DEBUG_MSG("Requesting history data from server...");
         m_faceRecognitionService->getAttendanceHistory();
     }
 }
@@ -280,7 +277,7 @@ QString QmlBridge::getHistoryDataAsJson()
         QJsonDocument doc(jsonArray);
         QString jsonString = doc.toJson(QJsonDocument::Compact);
         
-        qDebug() << "Returning history as JSON, length:" << jsonString.length();
+        RPI_DEBUG_VAR("Returning history as JSON, length", jsonString.length());
         return jsonString;
     }
     return "[]";
@@ -297,7 +294,7 @@ void QmlBridge::addRecognitionEventWithImage(const QString &userName, bool succe
     QDateTime now = QDateTime::currentDateTime();
     QString timestamp = now.toString("yyyy-MM-dd hh:mm:ss");
     
-    qDebug() << "Adding recognition event - User:" << userName << "Success:" << success << "Time:" << timestamp;
+    RPI_DEBUG_MSG("Adding recognition event - User:" << userName << "Success:" << success << "Time:" << timestamp);
     
     // Create event data
     QVariantMap event;
@@ -312,7 +309,7 @@ void QmlBridge::addRecognitionEventWithImage(const QString &userName, bool succe
     // Add captured image if provided
     if (!imageData.isEmpty()) {
         event["captured_image"] = imageData;
-        qDebug() << "Added captured image to recognition event";
+        RPI_DEBUG_MSG("Added captured image to recognition event");
     }
     
     // Add to beginning of global history
@@ -323,7 +320,7 @@ void QmlBridge::addRecognitionEventWithImage(const QString &userName, bool succe
         m_recognitionHistory = m_recognitionHistory.mid(0, 50);
     }
     
-    qDebug() << "Global recognition history updated, total events:" << m_recognitionHistory.size();
+    RPI_DEBUG_VAR("Global recognition history updated, total events", m_recognitionHistory.size());
     
     // Emit signals to notify QML
     emit recognitionEventAdded(userName, success, timestamp);
@@ -332,7 +329,7 @@ void QmlBridge::addRecognitionEventWithImage(const QString &userName, bool succe
 
 void QmlBridge::clearRecognitionHistory()
 {
-    qDebug() << "Clearing recognition history";
+    RPI_DEBUG_MSG("Clearing recognition history");
     m_recognitionHistory.clear();
     emit recognitionHistoryChanged();
 }
@@ -396,10 +393,10 @@ QString QmlBridge::convertImageToBase64(const QImage &image)
     
     if (image.save(&buffer, "JPEG", 85)) {
         QString base64String = imageData.toBase64();
-        qDebug() << "Converted image to base64, size:" << base64String.length();
+        RPI_DEBUG_VAR("Converted image to base64, size", base64String.length());
         return base64String;
     } else {
-        qDebug() << "Failed to convert image to base64";
+        RPI_ERROR("Failed to convert image to base64");
         return QString();
     }
 }
@@ -425,12 +422,13 @@ QString QmlBridge::cropImageToFaceFrame(const QImage &image, int frameWidth, int
     QBuffer buffer(&imageData);
     buffer.open(QIODevice::WriteOnly);
     
-    if (croppedImage.save(&buffer, "JPEG", 85)) {
+    // Optimize for RPi - reduce JPEG quality to save memory
+    if (croppedImage.save(&buffer, "JPEG", 70)) { // Reduced quality from 85 to 70 for RPi
         QString base64String = imageData.toBase64();
-        qDebug() << "Cropped image to face frame, size:" << base64String.length();
+        RPI_DEBUG_VAR("Cropped image to face frame, size", base64String.length() << "(optimized for RPi)");
         return base64String;
     } else {
-        qDebug() << "Failed to crop image to face frame";
+        RPI_ERROR("Failed to crop image to face frame");
         return QString();
     }
 }
@@ -457,16 +455,16 @@ void QmlBridge::captureAndRecognize()
 {
     // Capture current camera frame and send to server for recognition
     if (!m_cameraManager || !m_cameraManager->isCameraAvailable()) {
-        qDebug() << "Camera not available";
+        RPI_ERROR("Camera not available");
         emit faceRecognitionFailed();
         return;
     }
 
     // Make sure camera is started
     if (!m_cameraManager->isCameraRunning()) {
-        qDebug() << "Starting camera...";
+        RPI_DEBUG_MSG("Starting camera...");
         if (!m_cameraManager->startCamera()) {
-            qDebug() << "Failed to start camera";
+            RPI_ERROR("Failed to start camera");
             emit faceRecognitionFailed();
             return;
         }
@@ -479,14 +477,14 @@ void QmlBridge::captureAndRecognize()
 
     // Check if image capture is ready
     if (!m_cameraManager->isImageCaptureReady()) {
-        qDebug() << "Image capture not ready, waiting...";
+        RPI_DEBUG_MSG("Image capture not ready, waiting...");
         QTimer::singleShot(1000, [this]() {
             captureAndRecognize();
         });
         return;
     }
 
-    qDebug() << "Starting camera capture...";
+    RPI_DEBUG_MSG("Starting camera capture...");
     
     // Start camera capture (this is asynchronous)
     QByteArray imageData = m_cameraManager->captureImage();
@@ -515,16 +513,16 @@ void QmlBridge::captureAndRecognize()
 
 void QmlBridge::processRecognition(const QByteArray &imageData, const QString &capturedImage)
 {
-    qDebug() << "Processing recognition with image size:" << imageData.size();
+    RPI_DEBUG_VAR("Processing recognition with image size", imageData.size());
     
     // Send to server for recognition with captured image
     QVariantMap result = m_faceRecognitionService->recognizeFaceWithServer(imageData, capturedImage);
     
     if (result["success"].toBool()) {
-        qDebug() << "Recognition request sent successfully";
+        RPI_DEBUG_MSG("Recognition request sent successfully");
         // The response will be handled asynchronously via signals
     } else {
-        qDebug() << "Recognition request failed:" << result["error"].toString();
+        RPI_ERROR("Recognition request failed:" << result["error"].toString());
         // Don't fallback to simulation - let user know recognition failed
         emit faceRecognitionFailed();
     }
@@ -532,7 +530,7 @@ void QmlBridge::processRecognition(const QByteArray &imageData, const QString &c
 
 void QmlBridge::captureAndRecognizeFromQML(const QImage &image, const QString &capturedImage)
 {
-    qDebug() << "Received image from QML, size:" << image.size();
+    RPI_DEBUG_VAR("Received image from QML, size", image.size());
     
     // Convert QImage to QByteArray (JPEG)
     QByteArray imageData;
@@ -541,7 +539,7 @@ void QmlBridge::captureAndRecognizeFromQML(const QImage &image, const QString &c
     image.save(&buffer, "JPEG", 80); // 80% quality
     buffer.close();
     
-    qDebug() << "Converted image to JPEG, size:" << imageData.size();
+    RPI_DEBUG_VAR("Converted image to JPEG, size", imageData.size());
     
     // Process recognition with captured image
     processRecognition(imageData, capturedImage);
@@ -680,13 +678,19 @@ void QmlBridge::refreshData()
 
 void QmlBridge::loadUsers()
 {
-    m_users = m_databaseManager->getAllUsers();
+    // Get users from server instead of local database
+    if (m_faceRecognitionService) {
+        m_users = m_faceRecognitionService->getUsersFromServer();
+    }
     emit usersChanged();
 }
 
 void QmlBridge::loadHistoryLogs()
 {
-    m_historyLogs = m_databaseManager->getHistoryLogs();
+    // Get history from server instead of local database
+    if (m_faceRecognitionService) {
+        m_historyLogs = m_faceRecognitionService->getAttendanceHistory();
+    }
     emit historyLogsChanged();
 }
 
@@ -694,7 +698,7 @@ void QmlBridge::updateSystemMetrics()
 {
     // Get latest metrics from system monitor
     m_systemMetrics = m_systemMonitor->getSystemMetrics();
-    qDebug() << "QmlBridge: Updating system metrics:" << m_systemMetrics;
+    RPI_DEBUG_VAR("QmlBridge: Updating system metrics", m_systemMetrics);
     emit systemMetricsChanged();
 }
 
@@ -757,6 +761,6 @@ void QmlBridge::syncCachedLogs()
 {
     if (m_cacheManager && m_faceRecognitionService) {
         // TODO: Implement sync logic
-        qDebug() << "Sync cached logs - TODO: implement";
+        RPI_DEBUG_MSG("Sync cached logs - TODO: implement");
     }
 }

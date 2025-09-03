@@ -1,5 +1,5 @@
 #include "facerecognitionservice.h"
-#include "../database/databasemanager.h"
+#include "../debug_config.h"
 #include <QDebug>
 #include <QNetworkRequest>
 #include <QNetworkReply>
@@ -16,7 +16,6 @@
 
 FaceRecognitionService::FaceRecognitionService(QObject *parent)
     : QObject(parent)
-    , m_databaseManager(nullptr)
     , m_networkManager(new QNetworkAccessManager(this))
     , m_serverUrl("http://localhost:8001")
     , m_deviceId(QSysInfo::machineHostName())
@@ -30,15 +29,12 @@ FaceRecognitionService::~FaceRecognitionService()
 {
 }
 
-void FaceRecognitionService::setDatabaseManager(DatabaseManager *dbManager)
-{
-    m_databaseManager = dbManager;
-}
+// Database functionality moved to server - no longer needed
 
 void FaceRecognitionService::setServerUrl(const QString &url)
 {
     m_serverUrl = url;
-    qDebug() << "Server URL set to:" << m_serverUrl;
+    RPI_DEBUG_VAR("Server URL set to", m_serverUrl);
 }
 
 QString FaceRecognitionService::getServerUrl() const
@@ -63,7 +59,7 @@ QVariantMap FaceRecognitionService::recognizeFace(const QByteArray &imageData)
         return recognizeFaceWithServer(imageData);
     } else {
         // Fallback to local recognition
-        qDebug() << "Network not available, using local recognition";
+        RPI_DEBUG_MSG("Network not available, using local recognition");
         return recognizeFaceLocally(imageData);
     }
 }
@@ -88,14 +84,14 @@ QVariantMap FaceRecognitionService::recognizeFaceWithServer(const QByteArray &im
 
     QByteArray base64Image = imageToBase64(image);
     
-    qDebug() << "Sending recognition request with base64 size:" << base64Image.size();
+    RPI_DEBUG_VAR("Sending recognition request with base64 size", base64Image.size());
     
     // Create JSON request
     QJsonObject requestObj = createRecognizeRequest(base64Image, capturedImage);
     QJsonDocument doc(requestObj);
     QByteArray jsonData = doc.toJson();
     
-    qDebug() << "JSON request size:" << jsonData.size();
+    RPI_DEBUG_VAR("JSON request size", jsonData.size());
     
     // Send HTTP request
     QNetworkRequest request(QUrl(m_serverUrl + "/recognize"));
@@ -518,32 +514,32 @@ void FaceRecognitionService::onRecognizeReplyFinished()
     QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
     if (!reply) return;
     
-    qDebug() << "Recognition reply received, error:" << reply->error();
-    qDebug() << "Response status code:" << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    RPI_DEBUG_VAR("Recognition reply received, error", reply->error());
+    RPI_DEBUG_VAR("Response status code", reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt());
     
     if (reply->error() == QNetworkReply::NoError) {
         QByteArray responseData = reply->readAll();
-        qDebug() << "Response data size:" << responseData.size();
-        qDebug() << "Response data:" << QString::fromUtf8(responseData);
+        RPI_DEBUG_VAR("Response data size", responseData.size());
+        RPI_DEBUG_VAR("Response data", QString::fromUtf8(responseData));
         
         QVariantMap result = parseRecognizeResponse(responseData);
-        qDebug() << "Parsed result:" << result;
+        RPI_DEBUG_VAR("Parsed result", result);
         
         if (result["matched"].toBool()) {
-            qDebug() << "Face recognized successfully!";
-            qDebug() << "Emitting faceRecognized signal with userId:" << result["user_id"].toString() << "name:" << result["name"].toString();
+            RPI_DEBUG_MSG("Face recognized successfully!");
+            RPI_DEBUG_VAR("Emitting faceRecognized signal with userId", result["user_id"].toString() << "name:" << result["name"].toString());
             emit faceRecognized(
                 result["user_id"].toString(), // Use actual user ID from server
                 result["name"].toString()
             );
         } else {
-            qDebug() << "Face recognition failed - no match";
-            qDebug() << "Emitting faceRecognitionFailed signal";
+            RPI_DEBUG_MSG("Face recognition failed - no match");
+            RPI_DEBUG_MSG("Emitting faceRecognitionFailed signal");
             emit faceRecognitionFailed();
         }
     } else {
-        qDebug() << "Recognition request failed:" << reply->errorString();
-        qDebug() << "Error code:" << reply->error();
+        RPI_ERROR("Recognition request failed:" << reply->errorString());
+        RPI_DEBUG_VAR("Error code", reply->error());
         emit faceRecognitionFailed();
     }
     
@@ -587,14 +583,7 @@ void FaceRecognitionService::onHistoryReplyFinished()
         QVariantList history = parseHistoryResponse(responseData);
         qDebug() << "Parsed history data with" << history.size() << "entries";
         
-        // Update local database if available
-        if (m_databaseManager) {
-            for (const QVariant &logVar : history) {
-                QVariantMap log = logVar.toMap();
-                // Add to local database
-                // m_databaseManager->addHistoryLog(log);
-            }
-        }
+        // Database functionality moved to server
         
         emit attendanceHistoryUpdated();
         
@@ -635,14 +624,7 @@ void FaceRecognitionService::onUsersReplyFinished()
         qDebug() << "Users reply finished, emitting usersUpdated signal with" << users.size() << "users";
         emit usersUpdated(users);
         
-        // Update local database if available
-        if (m_databaseManager) {
-            for (const QVariant &userVar : users) {
-                QVariantMap user = userVar.toMap();
-                // Add/update user in local database
-                // m_databaseManager->updateUserLocally(user);
-            }
-        }
+        // Database functionality moved to server
     } else {
         qDebug() << "Users request failed:" << reply->errorString();
         emit usersUpdated(QVariantList()); // Emit empty list on error
@@ -747,23 +729,16 @@ QVariantMap FaceRecognitionService::recognizeFaceLocally(const QByteArray &image
 {
     QVariantMap result;
     
-    if (!m_databaseManager) {
-        result["success"] = false;
-        result["error"] = "Database not initialized";
-        return result;
-    }
-
     if (imageData.isEmpty()) {
         result["success"] = false;
         result["error"] = "No image data provided";
         return result;
     }
 
-    // Simple simulation for local recognition
-    // In a real implementation, this would use OpenCV or dlib
+    // Database functionality moved to server
     result["success"] = true;
     result["matched"] = false;
-    result["error"] = "Local recognition not implemented";
+    result["error"] = "Local recognition not implemented - use server";
     
     return result;
 }

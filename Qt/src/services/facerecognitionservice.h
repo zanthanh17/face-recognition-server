@@ -14,8 +14,6 @@
 #include <QBuffer>
 #include <QImage>
 
-class DatabaseManager;
-
 class FaceRecognitionService : public QObject
 {
     Q_OBJECT
@@ -45,8 +43,7 @@ public:
     void setDeviceId(const QString &deviceId);
     QString getDeviceId() const;
 
-    // Set database manager
-    void setDatabaseManager(DatabaseManager *dbManager);
+    // Database functionality moved to server
 
 signals:
     void faceDetected();
@@ -73,7 +70,6 @@ private slots:
     void onConnectionTestReplyFinished();
 
 private:
-    DatabaseManager *m_databaseManager;
     QNetworkAccessManager *m_networkManager;
     QString m_serverUrl;
     QString m_deviceId;
