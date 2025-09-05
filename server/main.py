@@ -191,6 +191,11 @@ def health_check() -> Dict[str, str]:
     """Health check endpoint."""
     return {"status": "ok"}
 
+@app.get("/ping")
+def ping() -> str:
+    """Simple ping endpoint for Uptime Robot."""
+    return "pong"
+
 
 @app.post("/recognize", response_model=RecognitionResponse)
 def recognize_face(request: RecognitionRequest) -> RecognitionResponse:
