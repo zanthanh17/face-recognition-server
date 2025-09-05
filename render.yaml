@@ -4,9 +4,7 @@ services:
     env: python
     region: singapore
     plan: starter
-    buildCommand: |
-      pip install --upgrade pip
-      pip install -r server/requirements-render.txt
+    buildCommand: pip install --upgrade pip && pip install -r server/requirements-render.txt
     startCommand: python scripts/start_server.py
     envVars:
       - key: HOST
