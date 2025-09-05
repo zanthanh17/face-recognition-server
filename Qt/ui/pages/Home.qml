@@ -14,13 +14,13 @@ Item {
     property string lastCapturedImage: ""
     
     // Expose function to deactivate camera from outside if needed
-        function deactivateCamera() {
-        // console.log("Home page: No camera to deactivate") // Disabled for RPi optimization
+    function deactivateCamera() {
+        console.log("Home page: No camera to deactivate")
     }
     
     // Expose function to activate camera from outside if needed
-        function activateCamera() {
-        // console.log("Home page: No camera to activate") // Disabled for RPi optimization
+    function activateCamera() {
+        console.log("Home page: No camera to activate")
     }
 
     // ====== dialogs ======
@@ -167,7 +167,7 @@ Item {
         MouseArea {
             anchors.fill: emoticonFace
             onClicked: {
-                // console.log("Emoticon clicked - starting face recognition") // Disabled for RPi optimization
+                console.log("Emoticon clicked - starting face recognition")
                 homePage.startFaceRecognition()
             }
         }
@@ -227,7 +227,7 @@ Item {
         
         // Lắng nghe sự kiện thay đổi wifi status
         function onWifiConnectedChanged() {
-            // console.log("WiFi status changed") // Disabled for RPi optimization
+            console.log("WiFi status changed")
             if (backend.getWifiConnected()) {
                 wifiIcon.source = "qrc:/assets/icons/wifi.png"
             } else {
@@ -245,12 +245,12 @@ Item {
 
     // Handle page visibility changes
     onVisibleChanged: {
-        // console.log("Home page visibility:", visible) // Disabled for RPi optimization
+        console.log("Home page visibility:", visible)
     }
     
     // Also handle when page is loaded
     Component.onCompleted: {
-        // console.log("Home page completed") // Disabled for RPi optimization
+        console.log("Home page completed")
         
         // Cập nhật wifi status khi page được load
         if (backend.getWifiConnected()) {

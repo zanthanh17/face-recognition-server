@@ -108,12 +108,16 @@ Item {
     // Load metrics when page becomes visible
     onVisibleChanged: {
         if (visible) {
+            backend.startSystemMonitoring()
             loadSystemMetrics()
+        } else {
+            backend.stopSystemMonitoring()
         }
     }
     
     // Load initial metrics
     Component.onCompleted: {
+        backend.startSystemMonitoring()
         loadSystemMetrics()
     }
 

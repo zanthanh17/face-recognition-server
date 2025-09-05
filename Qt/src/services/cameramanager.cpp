@@ -1,14 +1,12 @@
 #include "cameramanager.h"
-#include "../debug_config.h"
 #include <QDebug>
 #include <QBuffer>
 #include <QTimer>
 #include <QEventLoop>
-#include <QProcess>
-#include <QDir>
-#include <QStandardPaths>
-#include <QFileInfo>
-#include <QDateTime>
+#include <QCamera>
+#include <QMediaCaptureSession>
+#include <QImageCapture>
+#include <QMediaDevices>
 
 CameraManager::CameraManager(QObject *parent)
     : QObject(parent)
@@ -19,27 +17,14 @@ CameraManager::CameraManager(QObject *parent)
     , m_imageCapture(nullptr)
     , m_captureInProgress(false)
 {
-    // Check if rpicam-apps is available
-    QProcess process;
-    process.start("which", QStringList() << "rpicam-still");
-    process.waitForFinished();
+    // Check if camera is available
+    QList<QCameraDevice> cameras = QMediaDevices::videoInputs();
+    m_cameraAvailable = !cameras.isEmpty();
     
-    if (process.exitCode() == 0) {
-        m_cameraAvailable = true;
-        RPI_DEBUG_MSG("rpicam-still available - camera supported");
+    if (m_cameraAvailable) {
+        qDebug() << "Camera available:" << cameras.first().description();
     } else {
-        // Fallback: check for traditional camera
-        QProcess process2;
-        process2.start("which", QStringList() << "raspistill");
-        process2.waitForFinished();
-        
-        if (process2.exitCode() == 0) {
-            m_cameraAvailable = true;
-            RPI_DEBUG_MSG("raspistill available - camera supported");
-        } else {
-            m_cameraAvailable = false;
-            RPI_ERROR("No camera tools available (rpicam-still or raspistill)");
-        }
+        qDebug() << "No camera available";
     }
 }
 
@@ -56,19 +41,48 @@ bool CameraManager::startCamera()
     }
 
     if (m_cameraRunning) {
-        RPI_DEBUG_MSG("Camera already running");
+        qDebug() << "Camera already running";
         return true;
     }
 
     try {
-        // For rpicam-apps, we don't need to start a persistent camera
-        // We'll capture on-demand
+        // Create camera and capture session
+        QList<QCameraDevice> cameras = QMediaDevices::videoInputs();
+        if (cameras.isEmpty()) {
+            emit cameraError("No camera found");
+            return false;
+        }
+
+        m_camera = new QCamera(cameras.first(), this);
+        m_captureSession = new QMediaCaptureSession(this);
+        m_imageCapture = new QImageCapture(this);
+
+        m_captureSession->setCamera(m_camera);
+        m_captureSession->setImageCapture(m_imageCapture);
+
+        // Connect signals
+        connect(m_imageCapture, &QImageCapture::imageCaptured,
+                this, &CameraManager::onImageCaptured);
+        connect(m_imageCapture, &QImageCapture::errorOccurred,
+                this, &CameraManager::onImageCaptureError);
+        
+        // Connect camera status signals
+        connect(m_camera, &QCamera::activeChanged, [this](bool active) {
+            qDebug() << "Camera active changed:" << active;
+        });
+        
+        // Connect image capture ready signal
+        connect(m_imageCapture, &QImageCapture::readyForCaptureChanged, [this](bool ready) {
+            qDebug() << "Image capture ready for capture:" << ready;
+        });
+
+        m_camera->start();
         m_cameraRunning = true;
         emit cameraStarted();
-        RPI_DEBUG_MSG("Camera service started (rpicam-apps mode)");
+        qDebug() << "Camera started successfully";
         return true;
     } catch (const std::exception &e) {
-        RPI_ERROR("Failed to start camera:" << e.what());
+        qDebug() << "Failed to start camera:" << e.what();
         emit cameraError(QString("Failed to start camera: %1").arg(e.what()));
         return false;
     }
@@ -80,101 +94,101 @@ void CameraManager::stopCamera()
         return;
     }
 
+    if (m_camera) {
+        m_camera->stop();
+        delete m_camera;
+        m_camera = nullptr;
+    }
+    
+    if (m_captureSession) {
+        delete m_captureSession;
+        m_captureSession = nullptr;
+    }
+    
+    if (m_imageCapture) {
+        delete m_imageCapture;
+        m_imageCapture = nullptr;
+    }
+
     m_cameraRunning = false;
     emit cameraStopped();
-    RPI_DEBUG_MSG("Camera service stopped");
+    qDebug() << "Camera stopped";
 }
 
 QByteArray CameraManager::captureImage()
 {
-    if (!m_cameraAvailable) {
-        RPI_ERROR("Camera not available");
+    if (!m_cameraRunning || !m_imageCapture) {
+        qDebug() << "Camera not running or image capture not available";
         return QByteArray();
     }
 
     if (m_captureInProgress) {
-        RPI_DEBUG_MSG("Capture already in progress");
+        qDebug() << "Capture already in progress";
         return QByteArray();
+    }
+
+    // Check if camera is ready
+    if (m_camera && !m_camera->isActive()) {
+        qDebug() << "Camera not active";
+        return QByteArray();
+    }
+
+    // Check if image capture is ready
+    if (!m_imageCapture->isReadyForCapture()) {
+        qDebug() << "Image capture not ready for capture";
+        return QByteArray();
+    }
+
+    // If we have a previously captured image, return it
+    if (!m_lastCapturedImage.isEmpty()) {
+        qDebug() << "Returning previously captured image, size:" << m_lastCapturedImage.size();
+        return m_lastCapturedImage;
     }
 
     m_captureInProgress = true;
     m_lastCapturedImage.clear();
     
-    // Create temporary file for capture
-    QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
-    QString tempFile = tempDir + "/face_capture_" + QString::number(QDateTime::currentMSecsSinceEpoch()) + ".jpg";
-    
-    // Try rpicam-still first, fallback to raspistill
-    QString cameraCommand = "rpicam-still";
-    QStringList arguments;
-    
-    QProcess process;
-    process.start("which", QStringList() << "rpicam-still");
-    process.waitForFinished();
-    
-    if (process.exitCode() != 0) {
-        cameraCommand = "raspistill";
-        RPI_DEBUG_MSG("Using raspistill as fallback");
+    // Capture image
+    int id = m_imageCapture->capture();
+    if (id == -1) {
+        qDebug() << "Failed to start image capture";
+        m_captureInProgress = false;
+        return QByteArray();
     }
+
+    qDebug() << "Image capture started with id:" << id;
     
-    // Set capture parameters
-    arguments << "-o" << tempFile
-             << "-t" << "1000"  // Timeout 1 second
-             << "-w" << "640"   // Width
-             << "-h" << "480"   // Height
-             << "-q" << "80"    // Quality
-             << "-n";           // No preview
-    
-    RPI_DEBUG_MSG("Capturing image with" << cameraCommand << arguments.join(" "));
-    
-    // Start capture process
-    QProcess captureProcess;
-    captureProcess.start(cameraCommand, arguments);
-    
-    // Wait for capture to complete
-    if (captureProcess.waitForFinished(5000)) { // 5 second timeout
-        if (captureProcess.exitCode() == 0) {
-            // Read captured image
-            QFile file(tempFile);
-            if (file.open(QIODevice::ReadOnly)) {
-                m_lastCapturedImage = file.readAll();
-                file.close();
-                RPI_DEBUG_VAR("Image captured successfully, size", m_lastCapturedImage.size());
-                
-                // Clean up temp file
-                QFile::remove(tempFile);
-                
-                m_captureInProgress = false;
-                return m_lastCapturedImage;
-            } else {
-                RPI_ERROR("Failed to read captured image file");
-            }
-        } else {
-            RPI_ERROR("Camera capture failed with exit code:" << captureProcess.exitCode());
-            RPI_ERROR("Error output:" << captureProcess.readAllStandardError());
+    // Wait for capture to complete (with timeout)
+    QTimer::singleShot(5000, [this]() {
+        if (m_captureInProgress) {
+            qDebug() << "Image capture timeout";
+            m_captureInProgress = false;
         }
-    } else {
-        RPI_ERROR("Camera capture timeout");
-        captureProcess.kill();
-    }
-    
-    m_captureInProgress = false;
+    });
+
+    // For now, return empty - the actual image will be available in onImageCaptured
     return QByteArray();
 }
 
 void CameraManager::onImageCaptured(int id, const QImage &image)
 {
-    // This method is not used in rpicam-apps mode
-    Q_UNUSED(id)
-    Q_UNUSED(image)
+    qDebug() << "Image captured with id:" << id << "size:" << image.size();
+    
+    // Convert image to JPEG bytes
+    QBuffer buffer(&m_lastCapturedImage);
+    buffer.open(QIODevice::WriteOnly);
+    image.save(&buffer, "JPEG", 80); // 80% quality
+    buffer.close();
+    
+    m_captureInProgress = false;
+    qDebug() << "Image converted to JPEG, size:" << m_lastCapturedImage.size();
 }
 
 void CameraManager::onImageCaptureError(int id, QImageCapture::Error error, const QString &errorString)
 {
-    // This method is not used in rpicam-apps mode
-    Q_UNUSED(id)
-    Q_UNUSED(error)
-    Q_UNUSED(errorString)
+    qDebug() << "Image capture error:" << errorString;
+    m_captureInProgress = false;
+    emit cameraError(QString("Image capture failed: %1").arg(errorString));
 }
 
 bool CameraManager::isCameraAvailable() const
@@ -189,5 +203,5 @@ bool CameraManager::isCameraRunning() const
 
 bool CameraManager::isImageCaptureReady() const
 {
-    return m_cameraAvailable && !m_captureInProgress;
+    return m_imageCapture && m_imageCapture->isReadyForCapture();
 }

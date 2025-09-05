@@ -12,11 +12,15 @@ def main() -> None:
         import uvicorn  # type: ignore
         from server.main import app  # Direct import instead of string
     except Exception as e:
-        print(f"Please install server dependencies: pip install -r server/requirements.txt\nError: {e}", file=sys.stderr)
+        print(f"Please install server dependencies: pip install -r server/requirements-render.txt\nError: {e}", file=sys.stderr)
         sys.exit(1)
-    host = os.getenv("HOST", "127.0.0.1")
+    
+    # Render requires host=0.0.0.0 and uses PORT environment variable
+    host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8000"))
-    uvicorn.run(app, host=host, port=port, reload=False)
+    
+    print(f"Starting server on {host}:{port}")
+    uvicorn.run(app, host=host, port=port, reload=False, access_log=True)
 
 
 if __name__ == "__main__":

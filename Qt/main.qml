@@ -21,12 +21,12 @@ Window {
     Component.onCompleted: {
         // Check initial WiFi status from backend
         globalWifiConnected = backend.getWifiConnected()
-        // console.log("Initial WiFi status:", globalWifiConnected) // Disabled for RPi optimization
+        console.log("Initial WiFi status:", globalWifiConnected)
     }
     
-    // Timer to periodically check WiFi status (optimized for RPi)
+    // Timer to periodically check WiFi status
     Timer {
-        interval: 10000 // Check every 10 seconds instead of 5 for RPi optimization
+        interval: 5000 // Check every 5 seconds
         running: true
         repeat: true
         onTriggered: {
@@ -35,13 +35,13 @@ Window {
                 let currentStatus = backend.getWifiConnected()
                 if (currentStatus !== globalWifiConnected) {
                     globalWifiConnected = currentStatus
-                    // console.log("WiFi status updated:", globalWifiConnected) // Disabled for RPi optimization
+                    console.log("WiFi status updated:", globalWifiConnected)
                 }
             } else {
                 // WiFi radio is disabled, so we're definitely not connected
                 if (globalWifiConnected !== false) {
                     globalWifiConnected = false
-                    // console.log("WiFi radio disabled, setting status to disconnected") // Disabled for RPi optimization
+                    console.log("WiFi radio disabled, setting status to disconnected")
                 }
             }
         }
@@ -73,7 +73,7 @@ Window {
                     stack.push(settingsComponent)
                 }
                 function onStartFaceRecognition() {
-                    // console.log("Starting face recognition - switching to Login page") // Disabled for RPi optimization
+                    console.log("Starting face recognition - switching to Login page")
                     stack.push(loginComponent)
                 }
             }
@@ -98,7 +98,7 @@ Window {
                     stack.push(settingsComponent)
                 }
                 function onBackToHomeRequested() {
-                    // console.log("Going back to Home from Login") // Disabled for RPi optimization
+                    console.log("Going back to Home from Login")
                     stack.pop()
                 }
             }
@@ -123,7 +123,7 @@ Window {
                 function onBackRequested() { stack.pop() }
                 function onPasswordAuthenticated() { stack.push(settingAdminComponent) }
                 function onLogoClicked() { 
-                    // console.log("Logo clicked - going back to Home") // Disabled for RPi optimization
+                    console.log("Logo clicked - going back to Home")
                     stack.clear()
                     stack.push(homeComponent)
                 }
@@ -160,7 +160,7 @@ Window {
                     stack.push(systemMonitorComponent)
                 }
                 function onLogoClicked() { 
-                    // console.log("Logo clicked - going back to Home") // Disabled for RPi optimization
+                    console.log("Logo clicked - going back to Home")
                     stack.clear()
                     stack.push(homeComponent)
                 }
@@ -306,7 +306,7 @@ Window {
                 function onBackRequested() { stack.pop() }
                 function onWifiConfigured(success) {
                     root.globalWifiConnected = success
-                    // console.log("WiFi status changed:", success) // Disabled for RPi optimization
+                    console.log("WiFi status changed:", success)
                 }
             }
         }
