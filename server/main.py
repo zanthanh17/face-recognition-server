@@ -187,11 +187,13 @@ class RegistrationResponse(BaseModel):
 
 # ---------- API endpoints ----------
 @app.get("/health")
+@app.head("/health")
 def health_check() -> Dict[str, str]:
     """Health check endpoint."""
     return {"status": "ok"}
 
 @app.get("/ping")
+@app.head("/ping")
 def ping() -> str:
     """Simple ping endpoint for Uptime Robot."""
     return "pong"
