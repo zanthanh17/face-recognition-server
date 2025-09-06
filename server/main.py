@@ -5,12 +5,11 @@ import threading
 import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 
@@ -19,6 +18,7 @@ STORAGE_DIR = Path(__file__).parent / "storage"
 STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 EMBEDDINGS_PATH = STORAGE_DIR / "embeddings.json"
 LOGS_PATH = STORAGE_DIR / "attendance_logs.jsonl"
+TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 # Adaptive threshold for DeepFace ArcFace model
 # Optimized for Raspberry Pi Camera v2 with poor lighting conditions
@@ -143,6 +143,53 @@ def log_attendance(user_id: str, name: str, matched: bool, distance: Optional[fl
         f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
 
 
+def load_html_template(template_name: str) -> str:
+    """Load HTML template from file."""
+    template_path = TEMPLATES_DIR / f"{template_name}.html"
+    if template_path.exists():
+        with template_path.open("r", encoding="utf-8") as f:
+            return f.read()
+    return f"<h1>Template {template_name} not found</h1>"
+
+
+def calculate_work_hours(logs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Calculate work hours from attendance logs."""
+    if len(logs) < 2:
+        return []
+    
+    # Sort by timestamp
+    logs.sort(key=lambda x: x["ts"])
+    
+    # Get first and last check-in
+    first_check_in = logs[0]["ts"]
+    last_check_out = logs[-1]["ts"]
+    
+    # Convert to datetime for easier handling (using UTC+7 timezone)
+    vietnam_tz = timezone(timedelta(hours=7))
+    first_check_in_dt = datetime.fromtimestamp(first_check_in, tz=vietnam_tz)
+    last_check_out_dt = datetime.fromtimestamp(last_check_out, tz=vietnam_tz)
+    
+    # Calculate work hours
+    work_hours = (last_check_out - first_check_in) / 3600
+    
+    # Determine if it's cross-day work
+    cross_day = False
+    if first_check_in_dt.date() != last_check_out_dt.date():
+        cross_day = True
+    elif last_check_out_dt.hour < 6 and first_check_in_dt.hour >= 22:
+        cross_day = True
+    
+    return [{
+        "user_id": logs[0]["user_id"],
+        "name": logs[0]["name"],
+        "first_check_in": first_check_in,
+        "last_check_out": last_check_out,
+        "work_hours": round(work_hours, 2),
+        "check_ins": len(logs),
+        "cross_day": cross_day
+    }]
+
+
 # ---------- FastAPI app ----------
 app = FastAPI(title="FaceLog API", version="1.0.0")
 
@@ -187,16 +234,9 @@ class RegistrationResponse(BaseModel):
 
 # ---------- API endpoints ----------
 @app.get("/health")
-@app.head("/health")
 def health_check() -> Dict[str, str]:
     """Health check endpoint."""
     return {"status": "ok"}
-
-@app.get("/ping")
-@app.head("/ping")
-def ping() -> str:
-    """Simple ping endpoint for Uptime Robot."""
-    return "pong"
 
 
 @app.post("/recognize", response_model=RecognitionResponse)
@@ -225,10 +265,6 @@ def recognize_face(request: RecognitionRequest) -> RecognitionResponse:
         best_match = None
         best_distance = float("inf")
         
-        print(f"=== Face Recognition Debug ===")
-        print(f"Threshold: {RECOGNITION_THRESHOLD}")
-        print(f"Total users in database: {len(stored_embeddings)}")
-        
         for stored in stored_embeddings:
             if not stored.get("active", True):
                 continue
@@ -236,14 +272,9 @@ def recognize_face(request: RecognitionRequest) -> RecognitionResponse:
             stored_embedding = np.array(stored["embedding"], dtype=np.float32)
             distance = _cosine_distance(query_embedding, stored_embedding)
             
-            print(f"User: {stored['name']}, Distance: {distance:.4f}, Model: {stored.get('model', 'unknown')}")
-            
             if distance < best_distance:
                 best_distance = distance
                 best_match = stored
-        
-        print(f"Best match: {best_match['name'] if best_match else 'None'}, Distance: {best_distance:.4f}")
-        print(f"===============================")
         
         # Adaptive recognition logic optimized for RPi Camera v2
         if best_match and best_distance <= RECOGNITION_THRESHOLD:
@@ -273,8 +304,6 @@ def recognize_face(request: RecognitionRequest) -> RecognitionResponse:
                     quality_reason = f"Unclear winner: best={best_distance:.4f}, second={second_best_distance:.4f}"
             
             if is_acceptable_match:
-                print(f"✅ RPI CAMERA MATCH: User {best_match['name']}, Distance {best_distance:.4f} <= {RECOGNITION_THRESHOLD}")
-                
                 # Log successful recognition
                 log_attendance(best_match["id"], best_match["name"], True, best_distance, request.captured_image)
                 
@@ -287,8 +316,6 @@ def recognize_face(request: RecognitionRequest) -> RecognitionResponse:
                     liveness="pass"
                 )
             else:
-                print(f"⚠️ LOW QUALITY RPI MATCH: User {best_match['name']}, Distance {best_distance:.4f}, Reason: {quality_reason}")
-                
                 # Log failed recognition due to low quality
                 log_attendance("unknown", "Unknown", False, best_distance, request.captured_image)
                 
@@ -299,8 +326,6 @@ def recognize_face(request: RecognitionRequest) -> RecognitionResponse:
                     liveness="pass"
                 )
         else:
-            print(f"❌ NO MATCH: Best distance {best_distance:.4f} > {RECOGNITION_THRESHOLD}")
-            
             # Log failed recognition
             log_attendance("unknown", "Unknown", False, best_distance if best_match else None, request.captured_image)
             
@@ -605,22 +630,6 @@ def restore_user_backup(filename: str):
     }
 
 
-@app.get("/backups/{filename}/details")
-def get_backup_details(filename: str):
-    """Get detailed information about a backup."""
-    backup_dir = STORAGE_DIR / "backups"
-    backup_file = backup_dir / filename
-    
-    if not backup_file.exists():
-        raise HTTPException(status_code=404, detail="Backup file not found")
-    
-    try:
-        with backup_file.open("r", encoding="utf-8") as f:
-            backup_data = json.load(f)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid backup file: {e}")
-    
-    return backup_data
 
 
 # Attendance and work hours endpoints
@@ -686,42 +695,8 @@ def get_work_hours(date: Optional[str] = None):
         # Calculate work hours for each user
         users_work_hours = []
         for user_id, logs in user_logs.items():
-            if len(logs) < 2:
-                continue
-                
-            # Sort by timestamp
-            logs.sort(key=lambda x: x["ts"])
-            
-            # Get first and last check-in (quét thành công đầu tiên và cuối cùng)
-            first_check_in = logs[0]["ts"]
-            last_check_out = logs[-1]["ts"]
-            
-            # Convert to datetime for easier handling (using UTC+7 timezone)
-            vietnam_tz = timezone(timedelta(hours=7))
-            first_check_in_dt = datetime.fromtimestamp(first_check_in, tz=vietnam_tz)
-            last_check_out_dt = datetime.fromtimestamp(last_check_out, tz=vietnam_tz)
-            
-            # Calculate work hours based on first and last successful scan
-            # Simple calculation: last scan - first scan
-            work_hours = (last_check_out - first_check_in) / 3600
-            
-            # Determine if it's cross-day work (after midnight)
-            cross_day = False
-            if first_check_in_dt.date() != last_check_out_dt.date():
-                cross_day = True
-            elif last_check_out_dt.hour < 6 and first_check_in_dt.hour >= 22:
-                # Same day but late night work (22:00-06:00)
-                cross_day = True
-            
-            users_work_hours.append({
-                "user_id": user_id,
-                "name": logs[0]["name"],
-                "first_check_in": first_check_in,
-                "last_check_out": last_check_out,
-                "work_hours": round(work_hours, 2),
-                "check_ins": len(logs),
-                "cross_day": cross_day
-            })
+            work_hours_data = calculate_work_hours(logs)
+            users_work_hours.extend(work_hours_data)
         
         return {"users": users_work_hours}
         
@@ -775,39 +750,10 @@ def get_work_hours_summary(start_date: Optional[str] = None, end_date: Optional[
         # Calculate summary
         summary = []
         for (user_id, date), logs in user_date_logs.items():
-            if len(logs) < 2:
-                continue
-                
-            logs.sort(key=lambda x: x["ts"])
-            first_check_in = logs[0]["ts"]
-            last_check_out = logs[-1]["ts"]
-            
-            # Convert to datetime for easier handling (using UTC+7 timezone)
-            vietnam_tz = timezone(timedelta(hours=7))
-            first_check_in_dt = datetime.fromtimestamp(first_check_in, tz=vietnam_tz)
-            last_check_out_dt = datetime.fromtimestamp(last_check_out, tz=vietnam_tz)
-            
-            # Calculate work hours based on first and last successful scan
-            work_hours = (last_check_out - first_check_in) / 3600
-            
-            # Determine if it's cross-day work (after midnight)
-            cross_day = False
-            if first_check_in_dt.date() != last_check_out_dt.date():
-                cross_day = True
-            elif last_check_out_dt.hour < 6 and first_check_in_dt.hour >= 22:
-                # Same day but late night work (22:00-06:00)
-                cross_day = True
-            
-            summary.append({
-                "user_id": user_id,
-                "name": logs[0]["name"],
-                "date": date.isoformat(),
-                "first_check_in": first_check_in,
-                "last_check_out": last_check_out,
-                "work_hours": round(work_hours, 2),
-                "check_ins": len(logs),
-                "cross_day": cross_day
-            })
+            work_hours_data = calculate_work_hours(logs)
+            for data in work_hours_data:
+                data["date"] = date.isoformat()
+                summary.append(data)
         
         return {"summary": summary}
         
@@ -815,113 +761,6 @@ def get_work_hours_summary(start_date: Optional[str] = None, end_date: Optional[
         return {"summary": [], "error": str(e)}
 
 
-# Demo endpoint
-@app.get("/demo")
-def get_demo_page():
-    """Simple demo page"""
-    from fastapi.responses import HTMLResponse
-    return HTMLResponse(content="""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>API Demo - User Friendly</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-        <style>
-            body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
-            .card { background: rgba(255,255,255,0.95); border-radius: 15px; margin-bottom: 20px; }
-            .time-badge { background: #48bb78; color: white; padding: 5px 10px; border-radius: 15px; font-size: 0.8rem; }
-            .status-success { background: #48bb78; color: white; padding: 5px 10px; border-radius: 15px; }
-            .status-danger { background: #f56565; color: white; padding: 5px 10px; border-radius: 15px; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="text-center text-white mb-4">
-                <h1>API Demo - Hiển thị dữ liệu thân thiện</h1>
-                <p>Chuyển đổi JSON thành giao diện dễ đọc với timestamp được quy đổi</p>
-            </div>
-            
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="card p-3">
-                        <h4>Work Hours API</h4>
-                        <button class="btn btn-primary" onclick="loadWorkHours()">Tải dữ liệu chấm công</button>
-                        <div id="work-hours-result" class="mt-3"></div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="card p-3">
-                        <h4>History API</h4>
-                        <button class="btn btn-success" onclick="loadHistory()">Tải dữ liệu lịch sử</button>
-                        <div id="history-result" class="mt-3"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <script>
-        function formatTime(timestamp) {
-            if (!timestamp) return '-';
-            const date = new Date(timestamp * 1000);
-            return date.toLocaleString('vi-VN');
-        }
-        
-        async function loadWorkHours() {
-            const result = document.getElementById('work-hours-result');
-            result.innerHTML = '<div class="spinner-border"></div>';
-            try {
-                const response = await fetch('/attendance/work-hours');
-                const data = await response.json();
-                
-                if (data.users && data.users.length > 0) {
-                    result.innerHTML = data.users.map(user => `
-                        <div class="border rounded p-3 mb-2">
-                            <h5>${user.name}</h5>
-                            <p><strong>Check In đầu:</strong> <span class="time-badge">${formatTime(user.first_check_in)}</span></p>
-                            <p><strong>Check Out cuối:</strong> <span class="time-badge">${formatTime(user.last_check_out)}</span></p>
-                            <p><strong>Tổng giờ:</strong> <span class="text-success">${user.work_hours}h</span></p>
-                            <p><strong>Số lần quét:</strong> ${user.check_ins.length}</p>
-                        </div>
-                    `).join('');
-                } else {
-                    result.innerHTML = '<p class="text-muted">Không có dữ liệu</p>';
-                }
-            } catch(e) {
-                result.innerHTML = '<div class="alert alert-danger">Lỗi: ' + e.message + '</div>';
-            }
-        }
-        
-        async function loadHistory() {
-            const result = document.getElementById('history-result');
-            result.innerHTML = '<div class="spinner-border"></div>';
-            try {
-                const response = await fetch('/attendance/get?limit=5');
-                const data = await response.json();
-                
-                if (data.items && data.items.length > 0) {
-                    result.innerHTML = data.items.map(item => `
-                        <div class="border rounded p-3 mb-2">
-                            <p><strong>Thời gian:</strong> <span class="time-badge">${formatTime(item.ts)}</span></p>
-                            <p><strong>User:</strong> ${item.name || 'Unknown'}</p>
-                            <p><strong>Trạng thái:</strong> 
-                                <span class="status-${item.matched ? 'success' : 'danger'}">
-                                    ${item.matched ? 'Thành công' : 'Thất bại'}
-                                </span>
-                            </p>
-                            <p><strong>Distance:</strong> ${item.distance ? item.distance.toFixed(3) : '-'}</p>
-                        </div>
-                    `).join('');
-                } else {
-                    result.innerHTML = '<p class="text-muted">Không có dữ liệu</p>';
-                }
-            } catch(e) {
-                result.innerHTML = '<div class="alert alert-danger">Lỗi: ' + e.message + '</div>';
-            }
-        }
-        </script>
-    </body>
-    </html>
-    """)
 
 
 # Admin endpoint
@@ -929,247 +768,10 @@ def get_demo_page():
 def get_admin_page():
     """Admin dashboard page"""
     from fastapi.responses import HTMLResponse
-    return HTMLResponse(content="""
-    <!DOCTYPE html>
-    <html lang="vi">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>FaceLog Admin Dashboard</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-        <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-        <style>
-            body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
-            .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-            .card { background: rgba(255,255,255,0.95); border-radius: 15px; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
-            .stat-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 15px; text-align: center; }
-            .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; }
-            .btn-primary:hover { background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%); }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="text-center text-white mb-4">
-                <h1><i class="fas fa-chart-line me-3"></i>FaceLog Admin Dashboard</h1>
-                <p class="lead">Manage users and monitor face recognition system</p>
-                <button class="btn btn-primary btn-lg" onclick="testRecognition()">
-                    <i class="fas fa-camera me-2"></i>TEST FACE RECOGNITION
-                </button>
-            </div>
-            
-            <div class="row mb-4">
-                <div class="col-md-4">
-                    <div class="stat-card">
-                        <h3 id="total-users">0</h3>
-                        <p>TOTAL USERS</p>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="stat-card">
-                        <h3 id="active-users">0</h3>
-                        <p>ACTIVE USERS</p>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="stat-card">
-                        <h3 id="attendance-logs">0</h3>
-                        <p>ATTENDANCE LOGS</p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="card p-4">
-                        <h4><i class="fas fa-user-plus me-2"></i>Register New User</h4>
-                        <form id="registerForm">
-                            <div class="mb-3">
-                                <label class="form-label">Full Name *</label>
-                                <input type="text" class="form-control" id="userName" value="Thanh" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Position</label>
-                                <input type="text" class="form-control" id="userPosition" value="IT">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Face Image *</label>
-                                <input type="file" class="form-control" id="userImage" accept="image/*" required>
-                            </div>
-                            <button type="submit" class="btn btn-primary">REGISTER USER</button>
-                        </form>
-                        <div id="registerResult" class="mt-3"></div>
-                    </div>
-                </div>
-                
-                <div class="col-md-6">
-                    <div class="card p-4">
-                        <h4><i class="fas fa-cog me-2"></i>System Status</h4>
-                        <div class="mb-3">
-                            <label class="form-label">Recognition Threshold</label>
-                            <input type="range" class="form-range" id="threshold" min="0.1" max="1.0" step="0.05" value="0.45">
-                            <span id="thresholdValue">0.45</span>
-                        </div>
-                        <button class="btn btn-primary" onclick="updateThreshold()">UPDATE THRESHOLD</button>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="card p-4">
-                <h4><i class="fas fa-users me-2"></i>Registered Users</h4>
-                <div class="table-responsive">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>User ID</th>
-                                <th>Name</th>
-                                <th>Position</th>
-                                <th>Model</th>
-                                <th>Created</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="usersTable">
-                            <tr><td colspan="7" class="text-center">Loading...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-        
-        <script>
-        // Load stats on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            loadStats();
-            loadUsers();
-        });
-        
-        // Update threshold display
-        document.getElementById('threshold').addEventListener('input', function() {
-            document.getElementById('thresholdValue').textContent = this.value;
-        });
-        
-        async function loadStats() {
-            try {
-                const response = await fetch('/api/stats');
-                const data = await response.json();
-                document.getElementById('total-users').textContent = data.total_users;
-                document.getElementById('active-users').textContent = data.active_users;
-                document.getElementById('attendance-logs').textContent = data.attendance_logs;
-            } catch(e) {
-                console.error('Error loading stats:', e);
-            }
-        }
-        
-        async function loadUsers() {
-            try {
-                const response = await fetch('/api/users');
-                const data = await response.json();
-                const tbody = document.getElementById('usersTable');
-                
-                if (data.users && data.users.length > 0) {
-                    tbody.innerHTML = data.users.map(user => `
-                        <tr>
-                            <td><code>${user.id.substring(0, 8)}...</code></td>
-                            <td>${user.name}</td>
-                            <td>${user.position || '-'}</td>
-                            <td>${user.model}</td>
-                            <td>${new Date(user.created_at).toLocaleDateString()}</td>
-                            <td><span class="badge bg-success">Active</span></td>
-                            <td>
-                                <button class="btn btn-sm btn-outline-danger" onclick="deleteUser('${user.id}')">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    `).join('');
-                } else {
-                    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No users found</td></tr>';
-                }
-            } catch(e) {
-                console.error('Error loading users:', e);
-                document.getElementById('usersTable').innerHTML = '<tr><td colspan="7" class="text-center text-danger">Error loading users</td></tr>';
-            }
-        }
-        
-        document.getElementById('registerForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const result = document.getElementById('registerResult');
-            result.innerHTML = '<div class="spinner-border"></div>';
-            
-            try {
-                const file = document.getElementById('userImage').files[0];
-                if (!file) {
-                    result.innerHTML = '<div class="alert alert-danger">Please select an image</div>';
-                    return;
-                }
-                
-                const base64 = await fileToBase64(file);
-                const response = await fetch('/register', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        name: document.getElementById('userName').value,
-                        position: document.getElementById('userPosition').value,
-                        image_base64: base64
-                    })
-                });
-                
-                const data = await response.json();
-                if (response.ok) {
-                    result.innerHTML = '<div class="alert alert-success">User registered successfully!</div>';
-                    loadStats();
-                    loadUsers();
-                } else {
-                    result.innerHTML = '<div class="alert alert-danger">Error: ' + (data.detail || 'Unknown error') + '</div>';
-                }
-            } catch(e) {
-                result.innerHTML = '<div class="alert alert-danger">Error: ' + e.message + '</div>';
-            }
-        });
-        
-        function fileToBase64(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => {
-                    const base64 = reader.result.split(',')[1];
-                    resolve(base64);
-                };
-                reader.onerror = error => reject(error);
-            });
-        }
-        
-        function updateThreshold() {
-            const threshold = document.getElementById('threshold').value;
-            alert('Threshold updated to: ' + threshold);
-        }
-        
-        function testRecognition() {
-            alert('Face recognition test feature coming soon!');
-        }
-        
-        function deleteUser(userId) {
-            if (confirm('Are you sure you want to delete this user?')) {
-                alert('Delete user: ' + userId);
-            }
-        }
-        </script>
-    </body>
-    </html>
-    """)
+    return HTMLResponse(content=load_html_template("admin"))
 
 
 # Admin API endpoints
-@app.get("/api/users")
-def get_users_api():
-    """Get all registered users"""
-    records = load_embeddings()
-    return {
-        "total_users": len(records),
-        "active_users": len([r for r in records if r.get("active", True)]),
-        "users": records
-    }
 
 
 class UserUpdateRequest(BaseModel):
@@ -1213,25 +815,6 @@ def update_user(user_id: str, user_data: UserUpdateRequest):
     return {"message": "User updated successfully", "user_id": user_id}
 
 
-@app.get("/api/logs")
-def get_logs_api(limit: int = 50):
-    """Get attendance logs"""
-    if not LOGS_PATH.exists():
-        return {"items": [], "count": 0}
-    
-    try:
-        with LOGS_PATH.open("r", encoding="utf-8") as f:
-            lines = f.readlines()
-            items = []
-            for line in lines[-limit:]:  # Get last N lines
-                try:
-                    item = json.loads(line.strip())
-                    items.append(item)
-                except:
-                    continue
-            return {"items": items, "count": len(items)}
-    except Exception:
-        return {"items": [], "count": 0}
 
 
 @app.get("/api/stats")
@@ -1263,77 +846,7 @@ def get_stats_api():
 def get_dashboard():
     """Beautiful admin dashboard"""
     from fastapi.responses import HTMLResponse
-    return HTMLResponse(content="""
-    <!DOCTYPE html>
-    <html lang="vi">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>FaceLog Admin Dashboard</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-        <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-        <style>
-            body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
-            .dashboard-container { max-width: 1400px; margin: 0 auto; padding: 20px; }
-            .header { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 20px; padding: 30px; margin-bottom: 30px; text-align: center; color: white; }
-            .feature-card { background: rgba(255,255,255,0.95); border-radius: 20px; padding: 30px; margin-bottom: 30px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); }
-            .stat-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px; border-radius: 15px; text-align: center; }
-            .stat-number { font-size: 2.5rem; font-weight: bold; margin-bottom: 8px; }
-            .time-badge { background: linear-gradient(45deg, #48bb78, #38a169); color: white; padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; }
-        </style>
-    </head>
-    <body>
-        <div class="dashboard-container">
-            <div class="header">
-                <h1><i class="fas fa-chart-line me-3"></i>FaceLog Admin Dashboard</h1>
-                <p class="lead mb-0">Hệ thống quản lý chấm công với Face Recognition</p>
-            </div>
-            
-            <div class="feature-card">
-                <h3><i class="fas fa-user-clock me-2"></i>Dữ liệu Chấm Công</h3>
-                <button class="btn btn-primary" onclick="loadData()">Tải dữ liệu</button>
-                <div id="data-content" class="mt-3"></div>
-            </div>
-        </div>
-        
-        <script>
-        function formatTime(timestamp) {
-            if (!timestamp) return '-';
-            const date = new Date(timestamp * 1000);
-            return date.toLocaleString('vi-VN');
-        }
-        
-        async function loadData() {
-            const content = document.getElementById('data-content');
-            content.innerHTML = '<div class="spinner-border"></div>';
-            
-            try {
-                const response = await fetch('/attendance/get?limit=10');
-                const data = await response.json();
-                
-                if (data.items && data.items.length > 0) {
-                    content.innerHTML = data.items.map(item => `
-                        <div class="border rounded p-3 mb-2">
-                            <p><strong>Thời gian:</strong> <span class="time-badge">${formatTime(item.ts)}</span></p>
-                            <p><strong>User:</strong> ${item.name || 'Unknown'}</p>
-                            <p><strong>Trạng thái:</strong> 
-                                <span class="badge ${item.matched ? 'bg-success' : 'bg-danger'}">
-                                    ${item.matched ? 'Thành công' : 'Thất bại'}
-                                </span>
-                            </p>
-                        </div>
-                    `).join('');
-                } else {
-                    content.innerHTML = '<p class="text-muted">Không có dữ liệu</p>';
-                }
-            } catch(e) {
-                content.innerHTML = '<div class="alert alert-danger">Lỗi: ' + e.message + '</div>';
-            }
-        }
-        </script>
-    </body>
-    </html>
-    """)
+    return HTMLResponse(content=load_html_template("dashboard"))
 
 
 # Web interface endpoints

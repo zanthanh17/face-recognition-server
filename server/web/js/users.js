@@ -15,9 +15,11 @@ class UsersManager {
 
     setupEventListeners() {
         // Search functionality
-        document.getElementById('searchInput').addEventListener('input', 
-            FaceLogUtils.debounce(() => this.filterUsers(), 300)
-        );
+        let searchTimeout;
+        document.getElementById('searchInput').addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => this.filterUsers(), 300);
+        });
 
         // Filter functionality
         document.getElementById('statusFilter').addEventListener('change', () => this.filterUsers());
@@ -38,7 +40,7 @@ class UsersManager {
 
     async loadUsers() {
         try {
-            const response = await fetch('/api/users');
+            const response = await fetch('/users');
             const data = await response.json();
             
             this.users = data.users || [];
@@ -72,6 +74,24 @@ class UsersManager {
         } catch (error) {
             console.error('Error loading stats:', error);
         }
+    }
+
+    updateStats() {
+        // Update stats locally without API call
+        const totalUsers = this.users.length;
+        const activeUsers = this.users.filter(user => user.active).length;
+        
+        // Calculate recent users (last 7 days)
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const recentUsers = this.users.filter(user => {
+            const createdDate = new Date(user.created_at);
+            return createdDate >= sevenDaysAgo;
+        }).length;
+        
+        document.getElementById('total-users').textContent = totalUsers;
+        document.getElementById('active-users').textContent = activeUsers;
+        document.getElementById('recent-users').textContent = recentUsers;
     }
 
     filterUsers() {
@@ -214,11 +234,13 @@ class UsersManager {
 
         const saveBtn = document.getElementById('saveUserBtn');
         const originalText = saveBtn.innerHTML;
-        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Đang lưu...';
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Đang xử lý ảnh...';
         saveBtn.disabled = true;
 
         try {
             const base64 = await this.fileToBase64(imageFile);
+            
+            saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Đang lưu...';
             
             const response = await fetch('/register', {
                 method: 'POST',
@@ -237,8 +259,21 @@ class UsersManager {
             if (response.ok) {
                 this.showSuccess(`User "${name}" đã được đăng ký thành công!`);
                 this.resetForm();
-                this.loadUsers();
-                this.loadStats();
+                
+                // Optimistic update - add user to list immediately
+                const newUser = {
+                    id: data.user_id,
+                    name: name,
+                    position: position,
+                    model: data.model,
+                    created_at: new Date().toISOString(),
+                    active: true,
+                    image_base64: base64
+                };
+                this.users.unshift(newUser);
+                this.filteredUsers = [...this.users];
+                this.renderUsers();
+                this.updateStats();
                 
                 // Close modal
                 const modal = bootstrap.Modal.getInstance(document.getElementById('addUserModal'));
@@ -265,6 +300,12 @@ class UsersManager {
             return; // User cancelled
         }
 
+        // Optimistic update - remove user from list immediately
+        this.users = this.users.filter(u => u.id !== userId);
+        this.filteredUsers = [...this.users];
+        this.renderUsers();
+        this.updateStats();
+
         try {
             const response = await fetch(`/users/${userId}?backup=${backupOption}`, {
                 method: 'DELETE'
@@ -277,13 +318,23 @@ class UsersManager {
                     message += `\nĐã tạo backup với ${result.attendance_logs_removed} attendance logs.`;
                 }
                 this.showSuccess(message);
-                this.loadUsers();
-                this.loadStats();
             } else {
+                // Revert optimistic update on error
+                this.users.push(user);
+                this.filteredUsers = [...this.users];
+                this.renderUsers();
+                this.updateStats();
+                
                 const error = await response.json();
                 this.showError(`Lỗi: ${error.detail || 'Không thể xóa user'}`);
             }
         } catch (error) {
+            // Revert optimistic update on error
+            this.users.push(user);
+            this.filteredUsers = [...this.users];
+            this.renderUsers();
+            this.updateStats();
+            
             console.error('Error deleting user:', error);
             this.showError('Lỗi kết nối server');
         }
@@ -422,8 +473,18 @@ class UsersManager {
 
             if (response.ok) {
                 this.showSuccess(`User "${name}" đã được cập nhật thành công!`);
-                this.loadUsers();
-                this.loadStats();
+                
+                // Optimistic update - update user in list immediately
+                const userIndex = this.users.findIndex(u => u.id === userId);
+                if (userIndex !== -1) {
+                    this.users[userIndex].name = name;
+                    this.users[userIndex].position = position;
+                    if (imageFile) {
+                        this.users[userIndex].image_base64 = base64;
+                    }
+                    this.filteredUsers = [...this.users];
+                    this.renderUsers();
+                }
                 
                 // Close modal
                 const modal = bootstrap.Modal.getInstance(document.getElementById('editUserModal'));
@@ -442,13 +503,51 @@ class UsersManager {
 
     fileToBase64(file) {
         return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => {
-                const base64 = reader.result.split(',')[1];
-                resolve(base64);
+            // Compress image before converting to base64
+            this.compressImage(file, 0.8, 800, 600).then(compressedFile => {
+                const reader = new FileReader();
+                reader.readAsDataURL(compressedFile);
+                reader.onload = () => {
+                    const base64 = reader.result.split(',')[1];
+                    resolve(base64);
+                };
+                reader.onerror = error => reject(error);
+            }).catch(error => reject(error));
+        });
+    }
+
+    compressImage(file, quality = 0.8, maxWidth = 800, maxHeight = 600) {
+        return new Promise((resolve, reject) => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            
+            img.onload = () => {
+                // Calculate new dimensions
+                let { width, height } = img;
+                
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height = (height * maxWidth) / width;
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxHeight) {
+                        width = (width * maxHeight) / height;
+                        height = maxHeight;
+                    }
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                
+                // Draw and compress
+                ctx.drawImage(img, 0, 0, width, height);
+                canvas.toBlob(resolve, 'image/jpeg', quality);
             };
-            reader.onerror = error => reject(error);
+            
+            img.onerror = reject;
+            img.src = URL.createObjectURL(file);
         });
     }
 
@@ -525,5 +624,9 @@ class UsersManager {
 
 // Initialize users manager when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    window.usersManager = new UsersManager();
+    try {
+        window.usersManager = new UsersManager();
+    } catch (error) {
+        console.error('Error initializing UsersManager:', error);
+    }
 });
