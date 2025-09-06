@@ -7,173 +7,146 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="css/style.css" rel="stylesheet">
+    <link href="css/pages.css" rel="stylesheet">
 </head>
 <body>
-    <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container">
-            <a class="navbar-brand" href="/web/">
-                <i class="fas fa-face-smile me-2"></i>FaceLog
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <a href="/web/users.html" class="sidebar-brand">
+                <i class="fas fa-user-shield"></i>
+                <span>FaceLog</span>
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/web/">
-                            <i class="fas fa-home me-1"></i>Trang chủ
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="/web/users.html">
-                            <i class="fas fa-users me-1"></i>Quản lý Users
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/web/attendance.html">
-                            <i class="fas fa-clock me-1"></i>History In/Out
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/web/workhours.html">
-                            <i class="fas fa-calendar-check me-1"></i>Chấm công
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/web/backups.html">
-                            <i class="fas fa-database me-1"></i>Backups
-                        </a>
-                    </li>
-                </ul>
-            </div>
         </div>
-    </nav>
+        
+        <nav class="sidebar-nav">
+            <div class="nav-item">
+                <a href="/web/users.html" class="nav-link active">
+                    <i class="fas fa-users"></i>
+                    <span>Users</span>
+                </a>
+            </div>
+            
+            <div class="nav-item">
+                <a href="/web/attendance.html" class="nav-link">
+                    <i class="fas fa-clock"></i>
+                    <span>Attendance</span>
+                </a>
+            </div>
+            
+            <div class="nav-item">
+                <a href="/web/workhours.html" class="nav-link">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Time Tracking</span>
+                </a>
+            </div>
+            
+            <div class="nav-item mt-auto">
+                <a href="#" class="nav-link" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </nav>
+    </div>
 
-    <!-- Main Content -->
-    <div class="container mt-4">
-        <!-- Header -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h1 class="mb-2">
-                            <i class="fas fa-users me-2"></i>Quản lý Users
-                        </h1>
-                        <p class="text-muted mb-0">Quản lý danh sách users trong hệ thống</p>
-                    </div>
-                                <div class="btn-group">
+    <!-- Main Wrapper -->
+    <div class="main-wrapper">
+        <!-- Top Header -->
+        <div class="top-header">
+            <h1 class="page-title">User Management</h1>
+            <div class="header-actions">
                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUserModal">
-                    <i class="fas fa-plus me-1"></i>Thêm User
+                    <i class="fas fa-plus"></i>
+                    Add User
                 </button>
-                <button class="btn btn-warning" onclick="usersManager.cleanupOrphanedData()">
-                    <i class="fas fa-broom me-1"></i>Dọn dẹp dữ liệu thừa
-                </button>
-                <button class="btn btn-danger" onclick="usersManager.resetAllData()">
-                    <i class="fas fa-trash-alt me-1"></i>Reset tất cả
-                </button>
-            </div>
-                </div>
             </div>
         </div>
 
-        <!-- Stats Cards -->
-        <div class="row mb-4">
-            <div class="col-md-3">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <i class="fas fa-users fa-2x text-primary mb-2"></i>
-                        <h4 id="total-users">0</h4>
-                        <p class="text-muted mb-0">Tổng Users</p>
+        <!-- Content Area -->
+        <div class="content-area">
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
                     </div>
+                    <div class="stat-number" id="totalUsers">0</div>
+                    <div class="stat-label">Total Users</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">
+                            <i class="fas fa-user-check"></i>
+                        </div>
+                    </div>
+                    <div class="stat-number" id="activeUsers">0</div>
+                    <div class="stat-label">Active Users</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">
+                            <i class="fas fa-user-times"></i>
+                        </div>
+                    </div>
+                    <div class="stat-number" id="inactiveUsers">0</div>
+                    <div class="stat-label">Inactive Users</div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <i class="fas fa-user-check fa-2x text-success mb-2"></i>
-                        <h4 id="active-users">0</h4>
-                        <p class="text-muted mb-0">Active Users</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <i class="fas fa-user-clock fa-2x text-info mb-2"></i>
-                        <h4 id="recent-users">0</h4>
-                        <p class="text-muted mb-0">Users mới (7 ngày)</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <i class="fas fa-cog fa-2x text-warning mb-2"></i>
-                        <h4 id="threshold">0.45</h4>
-                        <p class="text-muted mb-0">Recognition Threshold</p>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Search and Filter -->
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="input-group">
-                    <span class="input-group-text">
-                        <i class="fas fa-search"></i>
-                    </span>
-                    <input type="text" class="form-control" id="searchInput" placeholder="Tìm kiếm user...">
+            <!-- Main Card -->
+            <div class="main-card">
+                <div class="card-header">
+                    <h2 class="card-title">User List</h2>
                 </div>
-            </div>
-            <div class="col-md-3">
-                <select class="form-select" id="statusFilter">
-                    <option value="">Tất cả trạng thái</option>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                </select>
-            </div>
-            <div class="col-md-3">
-                <select class="form-select" id="modelFilter">
-                    <option value="">Tất cả models</option>
-                    <option value="ArcFace">ArcFace</option>
-                    <option value="fallback_dct">Fallback DCT</option>
-                </select>
-            </div>
-        </div>
-
-        <!-- Users Table -->
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-list me-2"></i>Danh sách Users
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover" id="usersTable">
-                        <thead>
-                            <tr>
-                                <th>Avatar</th>
-                                <th>Thông tin</th>
-                                <th>Position</th>
-                                <th>Model</th>
-                                <th>Ngày tạo</th>
-                                <th>Trạng thái</th>
-                                <th>Thao tác</th>
-                            </tr>
-                        </thead>
-                        <tbody id="usersTableBody">
-                            <tr>
-                                <td colspan="7" class="text-center">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">Loading...</span>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                
+                <!-- Filters Section -->
+                <div class="filters-section">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Search</label>
+                            <input type="text" class="form-control" id="searchInput" placeholder="Search users...">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Status</label>
+                            <select class="form-control" id="statusFilter">
+                                <option value="">All Status</option>
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Position</label>
+                            <select class="form-control" id="positionFilter">
+                                <option value="">All Positions</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Table -->
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>EMPLOYEE</th>
+                                    <th>POSITION</th>
+                                    <th>CREATED DATE</th>
+                                    <th>ACTIONS</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <tr>
+                                    <td colspan="4" class="text-center">Loading users...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -181,64 +154,46 @@
 
     <!-- Add User Modal -->
     <div class="modal fade" id="addUserModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">
-                        <i class="fas fa-user-plus me-2"></i>Thêm User mới
-                    </h5>
+                    <h5 class="modal-title">Add User</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <form id="addUserForm">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label class="form-label">Họ và tên *</label>
-                                    <input type="text" class="form-control" id="userName" required>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label class="form-label">Chức vụ</label>
-                                    <input type="text" class="form-control" id="userPosition" placeholder="VD: Developer, Manager...">
-                                </div>
-                            </div>
-                        </div>
                         <div class="mb-3">
-                            <label class="form-label">Ảnh khuôn mặt *</label>
-                            <input type="file" class="form-control" id="userImage" accept="image/*" required>
-                            <div class="form-text">Chọn ảnh khuôn mặt rõ ràng để đăng ký</div>
+                            <label for="userName" class="form-label">
+                                <i class="fas fa-user"></i> User Name *
+                            </label>
+                            <input type="text" class="form-control" id="userName" required>
                         </div>
-                        <div class="mb-3">
-                            <div id="imagePreview" class="text-center" style="display: none;">
-                                <img id="previewImg" class="img-thumbnail" style="max-width: 200px; max-height: 200px;">
-                            </div>
+                    <div class="mb-3">
+                        <label for="userPosition" class="form-label">
+                            <i class="fas fa-briefcase"></i> Position
+                        </label>
+                        <input type="text" class="form-control" id="userPosition" 
+                               placeholder="e.g. Employee, Manager...">
+                    </div>
+                    <div class="mb-3">
+                        <label for="userImage" class="form-label">
+                            <i class="fas fa-camera"></i> Face Image *
+                        </label>
+                        <input type="file" class="form-control" id="userImage" accept="image/*" required>
+                        <div class="form-text">Select a clear face image, JPG or PNG format</div>
+                        <div id="imagePreview" style="display: none; margin-top: 10px;">
+                            <img id="previewImg" style="max-width: 200px; max-height: 200px; border-radius: 8px;">
                         </div>
+                    </div>
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                    <button type="button" class="btn btn-primary" id="saveUserBtn">
-                        <i class="fas fa-save me-1"></i>Lưu User
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> Cancel
                     </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- User Detail Modal -->
-    <div class="modal fade" id="userDetailModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">
-                        <i class="fas fa-user me-2"></i>Chi tiết User
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body" id="userDetailContent">
-                    <!-- Content will be loaded here -->
+                    <button type="button" class="btn btn-primary" id="saveUserBtn">
+                        <i class="fas fa-save"></i> Save
+                    </button>
                 </div>
             </div>
         </div>
@@ -246,70 +201,84 @@
 
     <!-- Edit User Modal -->
     <div class="modal fade" id="editUserModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">
-                        <i class="fas fa-user-edit me-2"></i>Chỉnh sửa User
-                    </h5>
+                    <h5 class="modal-title">Edit User</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="editUserForm">
-                        <input type="hidden" id="editUserId">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label class="form-label">Họ và tên *</label>
-                                    <input type="text" class="form-control" id="editUserName" required>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label class="form-label">Chức vụ</label>
-                                    <input type="text" class="form-control" id="editUserPosition" placeholder="VD: Developer, Manager...">
-                                </div>
-                            </div>
+                    <input type="hidden" id="editUserId">
+                    <div class="mb-3">
+                        <label for="editUserName" class="form-label">
+                            <i class="fas fa-user"></i> User Name *
+                        </label>
+                        <input type="text" class="form-control" id="editUserName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editUserPosition" class="form-label">
+                            <i class="fas fa-briefcase"></i> Position
+                        </label>
+                        <input type="text" class="form-control" id="editUserPosition">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">
+                            <i class="fas fa-image"></i> Current Image
+                        </label>
+                        <div class="text-center">
+                            <img id="editCurrentImage" class="img-fluid rounded" style="max-width: 200px;">
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Ảnh khuôn mặt hiện tại</label>
-                            <div class="text-center mb-2">
-                                <img id="editCurrentImage" class="img-thumbnail" style="max-width: 200px; max-height: 200px;">
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Ảnh khuôn mặt mới (tùy chọn)</label>
-                            <input type="file" class="form-control" id="editUserImage" accept="image/*">
-                            <div class="form-text">Chỉ chọn ảnh mới nếu muốn thay đổi ảnh khuôn mặt</div>
-                        </div>
-                        <div class="mb-3">
-                            <div id="editImagePreview" class="text-center" style="display: none;">
-                                <img id="editPreviewImg" class="img-thumbnail" style="max-width: 200px; max-height: 200px;">
-                            </div>
-                        </div>
-                    </form>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editUserImage" class="form-label">
+                            <i class="fas fa-camera"></i> New Face Image
+                        </label>
+                        <input type="file" class="form-control" id="editUserImage" accept="image/*">
+                        <div class="form-text">Leave empty if you don't want to change the image</div>
+                    </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
                     <button type="button" class="btn btn-primary" id="updateUserBtn">
-                        <i class="fas fa-save me-1"></i>Cập nhật User
+                        <i class="fas fa-save"></i> Update
                     </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Footer -->
-    <footer class="bg-dark text-white text-center py-4 mt-5">
-        <div class="container">
-            <p class="mb-0">
-                <i class="fas fa-code me-1"></i>
-                FaceLog System - Powered by FastAPI & Bootstrap 5
-            </p>
+    <!-- User Details Modal -->
+    <div class="modal fade" id="userDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">User Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="userDetailContent">
+                    <!-- Content will be inserted here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                </div>
+            </div>
         </div>
-    </footer>
+    </div>
 
+    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="js/users.js?v=1.3"></script>
+    <script src="js/users.js"></script>
+    
+    <script>
+        // Logout function
+        function logout() {
+            localStorage.removeItem('access_token');
+            window.location.href = '/';
+        }
+    </script>
 </body>
 </html>

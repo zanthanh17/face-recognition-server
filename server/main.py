@@ -7,9 +7,11 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import jwt
 import numpy as np
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 
 
@@ -19,6 +21,15 @@ STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 EMBEDDINGS_PATH = STORAGE_DIR / "embeddings.json"
 LOGS_PATH = STORAGE_DIR / "attendance_logs.jsonl"
 TEMPLATES_DIR = Path(__file__).parent / "templates"
+
+# Authentication configuration
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-this-in-production")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 hours
+
+# Default admin credentials (change in production)
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
 # Adaptive threshold for DeepFace ArcFace model
 # Optimized for Raspberry Pi Camera v2 with poor lighting conditions
@@ -232,11 +243,78 @@ class RegistrationResponse(BaseModel):
     embedding_length: int
 
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+
+
+# ---------- Authentication Functions ----------
+security = HTTPBearer()
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    try:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        token_data = TokenData(username=username)
+        return token_data
+    except jwt.PyJWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+def authenticate_user(username: str, password: str):
+    if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        return True
+    return False
+
 # ---------- API endpoints ----------
 @app.get("/health")
 def health_check() -> Dict[str, str]:
     """Health check endpoint."""
     return {"status": "ok"}
+
+
+@app.post("/login", response_model=Token)
+def login(login_data: LoginRequest):
+    """Login endpoint"""
+    if not authenticate_user(login_data.username, login_data.password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": login_data.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
 
 
 @app.post("/recognize", response_model=RecognitionResponse)
@@ -388,7 +466,7 @@ def register_user(request: RegistrationRequest) -> RegistrationResponse:
 
 
 @app.get("/users")
-def get_users() -> Dict[str, Any]:
+def get_users(current_user: TokenData = Depends(verify_token)) -> Dict[str, Any]:
     """Get all registered users."""
     embeddings = load_embeddings()
     return {
@@ -411,7 +489,7 @@ def get_user_image(user_id: str):
 
 
 @app.delete("/users/{user_id}")
-def delete_user(user_id: str, backup: bool = True):
+def delete_user(user_id: str, backup: bool = True, current_user: TokenData = Depends(verify_token)):
     """Delete a user by ID with optional backup."""
     embeddings = load_embeddings()
     user = next((u for u in embeddings if u["id"] == user_id), None)
@@ -487,7 +565,7 @@ def delete_user(user_id: str, backup: bool = True):
 
 
 @app.post("/admin/cleanup-orphaned-data")
-def cleanup_orphaned_data():
+def cleanup_orphaned_data(current_user: TokenData = Depends(verify_token)):
     """Clean up attendance logs that don't have corresponding users."""
     embeddings = load_embeddings()
     valid_user_ids = {user["id"] for user in embeddings}
@@ -530,7 +608,7 @@ def cleanup_orphaned_data():
 
 
 @app.post("/admin/reset-all-data")
-def reset_all_data():
+def reset_all_data(current_user: TokenData = Depends(verify_token)):
     """Reset all data - remove all users and attendance logs."""
     try:
         # Clear embeddings
@@ -556,6 +634,8 @@ def reset_all_data():
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error resetting data: {e}")
+
+
 
 
 @app.get("/backups")
@@ -764,11 +844,18 @@ def get_work_hours_summary(start_date: Optional[str] = None, end_date: Optional[
 
 
 # Admin endpoint
-@app.get("/admin/")
-def get_admin_page():
-    """Admin dashboard page"""
+@app.get("/")
+def get_login_page():
+    """Login page"""
     from fastapi.responses import HTMLResponse
-    return HTMLResponse(content=load_html_template("admin"))
+    return HTMLResponse(content=load_html_template("login"))
+
+
+@app.get("/login")
+def get_login_page_redirect():
+    """Login page redirect"""
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=load_html_template("login"))
 
 
 # Admin API endpoints
@@ -780,7 +867,7 @@ class UserUpdateRequest(BaseModel):
     image_base64: str = ""
 
 @app.put("/users/{user_id}")
-def update_user(user_id: str, user_data: UserUpdateRequest):
+def update_user(user_id: str, user_data: UserUpdateRequest, current_user: TokenData = Depends(verify_token)):
     """Update user information"""
     records = load_embeddings()
     

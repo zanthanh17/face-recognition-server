@@ -17,20 +17,12 @@ class WorkHoursManager {
     }
 
     setupEventListeners() {
-        // Date selection
-        document.getElementById('selectedDate').addEventListener('change', () => this.loadDailyData());
-        document.getElementById('startDate').addEventListener('change', () => this.loadSummaryData());
-        document.getElementById('endDate').addEventListener('change', () => this.loadSummaryData());
-
-        // View mode toggle
-        document.getElementById('dailyView').addEventListener('change', () => {
-            this.currentView = 'daily';
-            this.loadDailyData();
-        });
-        document.getElementById('summaryView').addEventListener('change', () => {
-            this.currentView = 'summary';
-            this.loadSummaryData();
-        });
+        // Date selection with null checks
+        const selectedDate = document.getElementById('selectedDate');
+        if (selectedDate) {
+            selectedDate.addEventListener('change', () => this.loadDailyData());
+        }
+        // Remove summary view functionality for now
     }
 
     setDefaultDates() {
@@ -38,9 +30,10 @@ class WorkHoursManager {
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(today.getDate() - 7);
         
-        document.getElementById('selectedDate').value = today.toISOString().split('T')[0];
-        document.getElementById('startDate').value = sevenDaysAgo.toISOString().split('T')[0];
-        document.getElementById('endDate').value = today.toISOString().split('T')[0];
+        const selectedDateElement = document.getElementById('selectedDate');
+        if (selectedDateElement) {
+            selectedDateElement.value = today.toISOString().split('T')[0];
+        }
     }
 
     async loadData() {
@@ -56,15 +49,24 @@ class WorkHoursManager {
         if (!selectedDate) return;
 
         try {
+            console.log('Loading daily data for date:', selectedDate);
             const response = await fetch(`/attendance/work-hours?date=${selectedDate}`);
+            console.log('Response status:', response.status);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
             const data = await response.json();
+            console.log('Response data:', data);
             
             this.workHours = data.users || [];
             this.updateStats();
             this.renderTable();
             this.updateCharts();
         } catch (error) {
-            this.showError('Lỗi tải dữ liệu giờ làm');
+            console.error('Error loading daily data:', error);
+            this.showError('Lỗi tải dữ liệu giờ làm: ' + error.message);
         }
     }
 
@@ -95,10 +97,13 @@ class WorkHoursManager {
         const activeWorkers = data.filter(item => item.work_hours > 0).length;
         const avgHours = totalWorkers > 0 ? (totalHours / totalWorkers).toFixed(1) : 0;
 
-        document.getElementById('total-workers').textContent = totalWorkers;
-        document.getElementById('total-hours').textContent = `${totalHours.toFixed(1)}h`;
-        document.getElementById('active-workers').textContent = activeWorkers;
-        document.getElementById('avg-hours').textContent = `${avgHours}h`;
+        const totalHoursEl = document.getElementById('totalHours');
+        const avgHoursEl = document.getElementById('avgHours');
+        const activeUsersEl = document.getElementById('activeUsers');
+        
+        if (totalHoursEl) totalHoursEl.textContent = `${totalHours.toFixed(1)}h`;
+        if (avgHoursEl) avgHoursEl.textContent = `${avgHours}h`;
+        if (activeUsersEl) activeUsersEl.textContent = activeWorkers;
     }
 
     renderTable() {

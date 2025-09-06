@@ -6,252 +6,195 @@
     <title>History In/Out - FaceLog</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link href="css/style.css?v=2.0" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+    <link href="css/pages.css" rel="stylesheet">
 </head>
 <body>
-    <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container">
-            <a class="navbar-brand" href="/web/">
-                <i class="fas fa-face-smile me-2"></i>FaceLog
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <a href="/web/users.html" class="sidebar-brand">
+                <i class="fas fa-user-shield"></i>
+                <span>FaceLog</span>
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/web/">
-                            <i class="fas fa-home me-1"></i>Trang chủ
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/web/users.html">
-                            <i class="fas fa-users me-1"></i>Quản lý Users
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="/web/attendance.html">
-                            <i class="fas fa-clock me-1"></i>History In/Out
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/web/workhours.html">
-                            <i class="fas fa-calendar-check me-1"></i>Chấm công
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/web/backups.html">
-                            <i class="fas fa-database me-1"></i>Backups
-                        </a>
-                    </li>
-                </ul>
-            </div>
         </div>
-    </nav>
+        
+        <nav class="sidebar-nav">
+            <div class="nav-item">
+                <a href="/web/users.html" class="nav-link">
+                    <i class="fas fa-users"></i>
+                    <span>Users</span>
+                </a>
+            </div>
+            
+            <div class="nav-item">
+                <a href="/web/attendance.html" class="nav-link active">
+                    <i class="fas fa-clock"></i>
+                    <span>Attendance</span>
+                </a>
+            </div>
+            
+            <div class="nav-item">
+                <a href="/web/workhours.html" class="nav-link">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Time Tracking</span>
+                </a>
+            </div>
+            
+            <div class="nav-item mt-auto">
+                <a href="#" class="nav-link" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </nav>
+    </div>
 
-    <!-- Main Content -->
-    <div class="container mt-4">
-        <!-- Header -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h1 class="mb-2">
-                            <i class="fas fa-clock me-2"></i>History In/Out
-                        </h1>
-                        <p class="text-muted mb-0">Lịch sử quét khuôn mặt và chấm công</p>
-                    </div>
-                    <div>
-                        <button class="btn btn-success me-2" onclick="attendanceManager.exportData()">
-                            <i class="fas fa-download me-1"></i>Export CSV
-                        </button>
-                        <button class="btn btn-primary" onclick="attendanceManager.refreshData()">
-                            <i class="fas fa-sync-alt me-1"></i>Refresh
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Stats Cards -->
-        <div class="row mb-4">
-            <div class="col-md-3">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <i class="fas fa-clock fa-2x text-primary mb-2"></i>
-                        <h4 id="total-logs">0</h4>
-                        <p class="text-muted mb-0">Tổng logs</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
-                        <h4 id="success-logs">0</h4>
-                        <p class="text-muted mb-0">Thành công</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <i class="fas fa-times-circle fa-2x text-danger mb-2"></i>
-                        <h4 id="failed-logs">0</h4>
-                        <p class="text-muted mb-0">Thất bại</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <i class="fas fa-users fa-2x text-info mb-2"></i>
-                        <h4 id="unique-users">0</h4>
-                        <p class="text-muted mb-0">Users tham gia</p>
-                    </div>
-                </div>
+    <!-- Main Wrapper -->
+    <div class="main-wrapper">
+        <!-- Top Header -->
+        <div class="top-header">
+            <h1 class="page-title">Attendance Management</h1>
+            <div class="header-actions">
+                <button class="btn btn-success" onclick="exportCSV()">
+                    <i class="fas fa-download"></i>
+                    Export CSV
+                </button>
+                <button class="btn btn-primary" onclick="refreshData()">
+                    <i class="fas fa-sync"></i>
+                    Refresh
+                </button>
+                <button class="btn btn-warning" onclick="cleanupData()">
+                    <i class="fas fa-broom"></i>
+                    Cleanup Data
+                </button>
+                <button class="btn btn-danger" onclick="resetAll()">
+                    <i class="fas fa-undo"></i>
+                    Reset All
+                </button>
             </div>
         </div>
 
-        <!-- Filters -->
-        <div class="row mb-4">
-            <div class="col-md-3">
-                <label class="form-label">Từ ngày</label>
-                <input type="date" class="form-control" id="startDate">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Đến ngày</label>
-                <input type="date" class="form-control" id="endDate">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Trạng thái</label>
-                <select class="form-select" id="statusFilter">
-                    <option value="">Tất cả</option>
-                    <option value="success">Thành công</option>
-                    <option value="failed">Thất bại</option>
-                </select>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">User</label>
-                <select class="form-select" id="userFilter">
-                    <option value="">Tất cả users</option>
-                </select>
-            </div>
-        </div>
-
-        <!-- Attendance Logs -->
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-list me-2"></i>Lịch sử quét khuôn mặt
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover" id="attendanceTable">
-                        <thead>
-                            <tr>
-                                <th>Thời gian</th>
-                                <th>Ảnh</th>
-                                <th>User</th>
-                                <th>Trạng thái</th>
-                                <th>Distance</th>
-                                <th>Chi tiết</th>
-                            </tr>
-                        </thead>
-                        <tbody id="attendanceTableBody">
-                            <tr>
-                                <td colspan="6" class="text-center">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">Loading...</span>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+        <!-- Content Area -->
+        <div class="content-area">
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">
+                            <i class="fas fa-list"></i>
+                        </div>
+                    </div>
+                    <div class="stat-number" id="totalLogs">0</div>
+                    <div class="stat-label">Total Logs</div>
                 </div>
                 
-                <!-- Pagination -->
-                <div class="d-flex justify-content-between align-items-center mt-3">
-                    <div>
-                        <span class="text-muted">Hiển thị <span id="showing-start">0</span>-<span id="showing-end">0</span> của <span id="total-count">0</span> logs</span>
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">
+                            <i class="fas fa-calendar-day"></i>
+                        </div>
                     </div>
-                    <div class="btn-group">
-                        <button class="btn btn-outline-primary" id="prevPage" onclick="attendanceManager.previousPage()">
-                            <i class="fas fa-chevron-left"></i>
-                        </button>
-                        <button class="btn btn-outline-primary" id="nextPage" onclick="attendanceManager.nextPage()">
-                            <i class="fas fa-chevron-right"></i>
-                        </button>
+                    <div class="stat-number" id="todayLogs">0</div>
+                    <div class="stat-label">Today's Logs</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">
+                            <i class="fas fa-user-check"></i>
+                        </div>
                     </div>
+                    <div class="stat-number" id="activeUsers">0</div>
+                    <div class="stat-label">Active Users</div>
                 </div>
             </div>
-        </div>
 
-        <!-- Chart Section -->
-        <div class="row mt-4">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="fas fa-chart-pie me-2"></i>Thống kê theo trạng thái
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <canvas id="statusChart" width="400" height="200"></canvas>
+            <!-- Main Card -->
+            <div class="main-card">
+                <div class="card-header">
+                    <h2 class="card-title">Attendance Logs</h2>
+                </div>
+                
+                <!-- Filters Section -->
+                <div class="filters-section">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Date</label>
+                            <input type="date" class="form-control" id="dateFilter">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">User</label>
+                            <select class="form-control" id="userFilter">
+                                <option value="">All Users</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Status</label>
+                            <select class="form-control" id="statusFilter">
+                                <option value="">All Status</option>
+                                <option value="matched">Matched</option>
+                                <option value="unmatched">Unmatched</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="fas fa-chart-bar me-2"></i>Hoạt động theo giờ
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <canvas id="hourlyChart" width="400" height="200"></canvas>
+                
+                <!-- Table -->
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>TIME</th>
+                                    <th>USER</th>
+                                    <th>STATUS</th>
+                                    <th>DISTANCE</th>
+                                    <th>IMAGE</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendanceTableBody">
+                                <tr>
+                                    <td colspan="5" class="text-center">Loading attendance logs...</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Image Detail Modal -->
-    <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="imageModalLabel">
-                        <i class="fas fa-image me-2"></i>Ảnh Capture Chi Tiết
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body text-center">
-                    <div id="modalImageContainer">
-                        <p class="text-muted">Không có ảnh capture</p>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Footer -->
-    <footer class="bg-dark text-white text-center py-4 mt-5">
-        <div class="container">
-            <p class="mb-0">
-                <i class="fas fa-code me-1"></i>
-                FaceLog System - Powered by FastAPI & Bootstrap 5
-            </p>
-        </div>
-    </footer>
-
+    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="js/attendance.js?v=1.10"></script>
+    <script src="js/attendance.js"></script>
+    
+    <script>
+        // Logout function
+        function logout() {
+            localStorage.removeItem('access_token');
+            window.location.href = '/';
+        }
+        
+        // Export CSV function
+        function exportCSV() {
+            console.log('Export CSV clicked');
+        }
+        
+        // Refresh data function
+        function refreshData() {
+            console.log('Refresh clicked');
+        }
+        
+        // Cleanup data function
+        function cleanupData() {
+            console.log('Cleanup Data clicked');
+        }
+        
+        // Reset all function
+        function resetAll() {
+            console.log('Reset All clicked');
+        }
+    </script>
 </body>
 </html>

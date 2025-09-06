@@ -18,20 +18,23 @@ class AttendanceManager {
     }
 
     setupEventListeners() {
-        // Filter event listeners
-        document.getElementById('startDate').addEventListener('change', () => this.filterData());
-        document.getElementById('endDate').addEventListener('change', () => this.filterData());
-        document.getElementById('statusFilter').addEventListener('change', () => this.filterData());
-        document.getElementById('userFilter').addEventListener('change', () => this.filterData());
+        // Filter event listeners with null checks
+        const dateFilter = document.getElementById('dateFilter');
+        const statusFilter = document.getElementById('statusFilter');
+        const userFilter = document.getElementById('userFilter');
+        
+        if (dateFilter) dateFilter.addEventListener('change', () => this.filterData());
+        if (statusFilter) statusFilter.addEventListener('change', () => this.filterData());
+        if (userFilter) userFilter.addEventListener('change', () => this.filterData());
     }
 
     setDefaultDates() {
         const today = new Date();
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(today.getDate() - 7);
+        const dateFilter = document.getElementById('dateFilter');
         
-        document.getElementById('startDate').value = sevenDaysAgo.toISOString().split('T')[0];
-        document.getElementById('endDate').value = today.toISOString().split('T')[0];
+        if (dateFilter) {
+            dateFilter.value = today.toISOString().split('T')[0];
+        }
     }
 
     async loadData() {
@@ -60,29 +63,34 @@ class AttendanceManager {
         const failedLogs = this.logs.filter(log => !log.matched).length;
         const uniqueUsers = new Set(this.logs.filter(log => log.matched).map(log => log.user_id)).size;
 
-        document.getElementById('total-logs').textContent = totalLogs;
-        document.getElementById('success-logs').textContent = successLogs;
-        document.getElementById('failed-logs').textContent = failedLogs;
-        document.getElementById('unique-users').textContent = uniqueUsers;
+        const totalLogsEl = document.getElementById('totalLogs');
+        const todayLogsEl = document.getElementById('todayLogs');
+        const activeUsersEl = document.getElementById('activeUsers');
+        
+        if (totalLogsEl) totalLogsEl.textContent = totalLogs;
+        if (todayLogsEl) todayLogsEl.textContent = successLogs;
+        if (activeUsersEl) activeUsersEl.textContent = uniqueUsers;
     }
 
     filterData() {
-        const startDate = document.getElementById('startDate').value;
-        const endDate = document.getElementById('endDate').value;
-        const statusFilter = document.getElementById('statusFilter').value;
-        const userFilter = document.getElementById('userFilter').value;
+        const dateFilter = document.getElementById('dateFilter');
+        const statusFilter = document.getElementById('statusFilter');
+        const userFilter = document.getElementById('userFilter');
+        
+        const selectedDate = dateFilter ? dateFilter.value : '';
+        const statusValue = statusFilter ? statusFilter.value : '';
+        const userValue = userFilter ? userFilter.value : '';
 
         this.filteredLogs = this.logs.filter(log => {
             const logDate = new Date(log.ts * 1000).toISOString().split('T')[0];
             
-            const matchesDate = (!startDate || logDate >= startDate) && 
-                              (!endDate || logDate <= endDate);
+            const matchesDate = !selectedDate || logDate === selectedDate;
             
-            const matchesStatus = !statusFilter || 
-                                (statusFilter === 'success' && log.matched) ||
-                                (statusFilter === 'failed' && !log.matched);
+            const matchesStatus = !statusValue || 
+                                (statusValue === 'matched' && log.matched) ||
+                                (statusValue === 'unmatched' && !log.matched);
             
-            const matchesUser = !userFilter || log.user_id === userFilter;
+            const matchesUser = !userValue || log.user_id === userValue;
 
             return matchesDate && matchesStatus && matchesUser;
         });
@@ -97,6 +105,8 @@ class AttendanceManager {
 
     renderTable() {
         const tbody = document.getElementById('attendanceTableBody');
+        if (!tbody) return;
+        
         const startIndex = (this.currentPage - 1) * this.itemsPerPage;
         const endIndex = startIndex + this.itemsPerPage;
         const pageLogs = this.filteredLogs.slice(startIndex, endIndex);
@@ -187,12 +197,18 @@ class AttendanceManager {
         const startItem = (this.currentPage - 1) * this.itemsPerPage + 1;
         const endItem = Math.min(this.currentPage * this.itemsPerPage, this.filteredLogs.length);
 
-        document.getElementById('showing-start').textContent = this.filteredLogs.length > 0 ? startItem : 0;
-        document.getElementById('showing-end').textContent = endItem;
-        document.getElementById('total-count').textContent = this.filteredLogs.length;
+        const showingStartEl = document.getElementById('showing-start');
+        const showingEndEl = document.getElementById('showing-end');
+        const totalCountEl = document.getElementById('total-count');
+        const prevPageEl = document.getElementById('prevPage');
+        const nextPageEl = document.getElementById('nextPage');
 
-        document.getElementById('prevPage').disabled = this.currentPage === 1;
-        document.getElementById('nextPage').disabled = this.currentPage === totalPages;
+        if (showingStartEl) showingStartEl.textContent = this.filteredLogs.length > 0 ? startItem : 0;
+        if (showingEndEl) showingEndEl.textContent = endItem;
+        if (totalCountEl) totalCountEl.textContent = this.filteredLogs.length;
+
+        if (prevPageEl) prevPageEl.disabled = this.currentPage === 1;
+        if (nextPageEl) nextPageEl.disabled = this.currentPage === totalPages;
     }
 
     previousPage() {
@@ -343,8 +359,12 @@ class AttendanceManager {
     }
 
     showImageDetail(capturedImage, userName) {
-        const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+        const modalEl = document.getElementById('imageModal');
         const container = document.getElementById('modalImageContainer');
+        
+        if (!modalEl || !container) return;
+        
+        const modal = new bootstrap.Modal(modalEl);
         
         if (capturedImage && capturedImage.trim() !== '') {
             container.innerHTML = `

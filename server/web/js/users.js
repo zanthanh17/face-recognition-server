@@ -16,31 +16,53 @@ class UsersManager {
     setupEventListeners() {
         // Search functionality
         let searchTimeout;
-        document.getElementById('searchInput').addEventListener('input', () => {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => this.filterUsers(), 300);
-        });
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', () => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => this.filterUsers(), 300);
+            });
+        }
 
-        // Filter functionality
-        document.getElementById('statusFilter').addEventListener('change', () => this.filterUsers());
-        document.getElementById('modelFilter').addEventListener('change', () => this.filterUsers());
+        // Filter functionality with null check
+        const statusFilter = document.getElementById('statusFilter');
+        if (statusFilter) {
+            statusFilter.addEventListener('change', () => this.filterUsers());
+        }
 
-        // Add user form
-        document.getElementById('saveUserBtn').addEventListener('click', () => this.saveUser());
+        // Add user form with null check
+        const saveUserBtn = document.getElementById('saveUserBtn');
+        if (saveUserBtn) {
+            saveUserBtn.addEventListener('click', () => this.saveUser());
+        }
         
-        // Image preview
-        document.getElementById('userImage').addEventListener('change', (e) => this.handleImagePreview(e));
+        // Image preview with null check
+        const userImageInput = document.getElementById('userImage');
+        if (userImageInput) {
+            userImageInput.addEventListener('change', (e) => this.handleImagePreview(e));
+        }
         
         // Edit user form
-        document.getElementById('updateUserBtn').addEventListener('click', () => this.updateUser());
+        const updateUserBtn = document.getElementById('updateUserBtn');
+        if (updateUserBtn) {
+            updateUserBtn.addEventListener('click', () => this.updateUser());
+        }
         
-        // Edit image preview
-        document.getElementById('editUserImage').addEventListener('change', (e) => this.handleEditImagePreview(e));
+        // Edit image preview with null check
+        const editUserImageInput = document.getElementById('editUserImage');
+        if (editUserImageInput) {
+            editUserImageInput.addEventListener('change', (e) => this.handleEditImagePreview(e));
+        }
     }
 
     async loadUsers() {
         try {
-            const response = await fetch('/users');
+            const token = localStorage.getItem('access_token');
+            const headers = {
+                'Authorization': `Bearer ${token}`
+            };
+
+            const response = await fetch('/users', { headers });
             const data = await response.json();
             
             this.users = data.users || [];
@@ -54,23 +76,17 @@ class UsersManager {
 
     async loadStats() {
         try {
-            const response = await fetch('/api/stats');
+            const token = localStorage.getItem('access_token');
+            const headers = {
+                'Authorization': `Bearer ${token}`
+            };
+
+            const response = await fetch('/users', { headers });
             const data = await response.json();
             
-            document.getElementById('total-users').textContent = data.total_users;
-            document.getElementById('active-users').textContent = data.active_users;
-            document.getElementById('threshold').textContent = data.recognition_threshold;
-            
-            // Calculate recent users (last 7 days)
-            const sevenDaysAgo = new Date();
-            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-            
-            const recentUsers = this.users.filter(user => {
-                const createdDate = new Date(user.created_at);
-                return createdDate >= sevenDaysAgo;
-            }).length;
-            
-            document.getElementById('recent-users').textContent = recentUsers;
+            document.getElementById('totalUsers').textContent = data.total_users || 0;
+            document.getElementById('activeUsers').textContent = data.active_users || 0;
+            document.getElementById('inactiveUsers').textContent = (data.total_users || 0) - (data.active_users || 0);
         } catch (error) {
             console.error('Error loading stats:', error);
         }
@@ -89,15 +105,18 @@ class UsersManager {
             return createdDate >= sevenDaysAgo;
         }).length;
         
-        document.getElementById('total-users').textContent = totalUsers;
-        document.getElementById('active-users').textContent = activeUsers;
-        document.getElementById('recent-users').textContent = recentUsers;
+        const totalUsersEl = document.getElementById('totalUsers');
+        const activeUsersEl = document.getElementById('activeUsers');
+        const inactiveUsersEl = document.getElementById('inactiveUsers');
+        
+        if (totalUsersEl) totalUsersEl.textContent = totalUsers;
+        if (activeUsersEl) activeUsersEl.textContent = activeUsers;
+        if (inactiveUsersEl) inactiveUsersEl.textContent = totalUsers - activeUsers;
     }
 
     filterUsers() {
         const searchTerm = document.getElementById('searchInput').value.toLowerCase();
         const statusFilter = document.getElementById('statusFilter').value;
-        const modelFilter = document.getElementById('modelFilter').value;
 
         this.filteredUsers = this.users.filter(user => {
             const matchesSearch = user.name.toLowerCase().includes(searchTerm) ||
@@ -106,10 +125,8 @@ class UsersManager {
             const matchesStatus = !statusFilter || 
                                 (statusFilter === 'active' && user.active) ||
                                 (statusFilter === 'inactive' && !user.active);
-            
-            const matchesModel = !modelFilter || user.model === modelFilter;
 
-            return matchesSearch && matchesStatus && matchesModel;
+            return matchesSearch && matchesStatus;
         });
 
         this.renderUsers();
@@ -121,9 +138,9 @@ class UsersManager {
         if (this.filteredUsers.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="7" class="text-center text-muted">
+                    <td colspan="4" class="text-center text-muted">
                         <i class="fas fa-inbox fa-2x mb-2"></i>
-                        <p>Không tìm thấy users nào</p>
+                        <p>No users found</p>
                     </td>
                 </tr>
             `;
@@ -146,35 +163,29 @@ class UsersManager {
         return `
             <tr class="fade-in">
                 <td>
-                    <img src="${avatarSrc}" class="user-avatar" alt="${user.name}" 
-                         onclick="usersManager.showUserDetail('${user.id}')" 
-                         style="cursor: pointer;" title="Click để xem chi tiết">
-                </td>
-                <td>
-                    <div>
-                        <strong>${user.name}</strong>
-                        <br>
-                        <small class="text-muted">ID: ${user.id.substring(0, 8)}...</small>
+                    <div class="d-flex align-items-center">
+                        <img src="${avatarSrc}" class="user-avatar me-3" alt="${user.name}" 
+                             onclick="usersManager.showUserDetail('${user.id}')" 
+                             style="cursor: pointer;" title="Click to view details">
+                        <div>
+                            <strong>${user.name}</strong>
+                            <br>
+                            <small class="text-muted">ID: ${user.id.substring(0, 8)}...</small>
+                            <br>
+                            ${statusBadge}
+                        </div>
                     </div>
                 </td>
                 <td>${user.position || '-'}</td>
-                <td>
-                    <span class="badge bg-info">${user.model}</span>
-                </td>
                 <td>${createdDate}</td>
-                <td>${statusBadge}</td>
                 <td>
                     <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-primary" onclick="usersManager.showUserDetail('${user.id}')" 
-                                title="Xem chi tiết">
-                            <i class="fas fa-eye"></i>
-                        </button>
                         <button class="btn btn-outline-warning" onclick="usersManager.editUser('${user.id}')" 
-                                title="Chỉnh sửa user">
+                                title="Edit user">
                             <i class="fas fa-edit"></i>
                         </button>
                         <button class="btn btn-outline-danger" onclick="usersManager.deleteUser('${user.id}')" 
-                                title="Xóa user">
+                                title="Delete user">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
@@ -188,14 +199,14 @@ class UsersManager {
         const preview = document.getElementById('imagePreview');
         const previewImg = document.getElementById('previewImg');
 
-        if (file) {
+        if (file && preview && previewImg) {
             const reader = new FileReader();
             reader.onload = function(e) {
                 previewImg.src = e.target.result;
                 preview.style.display = 'block';
             };
             reader.readAsDataURL(file);
-        } else {
+        } else if (preview) {
             preview.style.display = 'none';
         }
     }
@@ -205,14 +216,14 @@ class UsersManager {
         const preview = document.getElementById('editImagePreview');
         const previewImg = document.getElementById('editPreviewImg');
 
-        if (file) {
+        if (file && preview && previewImg) {
             const reader = new FileReader();
             reader.onload = function(e) {
                 previewImg.src = e.target.result;
                 preview.style.display = 'block';
             };
             reader.readAsDataURL(file);
-        } else {
+        } else if (preview) {
             preview.style.display = 'none';
         }
     }
@@ -242,10 +253,12 @@ class UsersManager {
             
             saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Đang lưu...';
             
+            const token = localStorage.getItem('access_token');
             const response = await fetch('/register', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
                     name: name,
@@ -307,8 +320,15 @@ class UsersManager {
         this.updateStats();
 
         try {
+            const token = localStorage.getItem('access_token');
+            const headers = {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            };
+
             const response = await fetch(`/users/${userId}?backup=${backupOption}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: headers
             });
 
             if (response.ok) {
@@ -344,7 +364,17 @@ class UsersManager {
         const user = this.users.find(u => u.id === userId);
         if (!user) return;
 
-        const modal = new bootstrap.Modal(document.getElementById('userDetailModal'));
+        const modalElement = document.getElementById('userDetailModal');
+        if (!modalElement) {
+            console.error('userDetailModal not found');
+            return;
+        }
+
+        const modal = new bootstrap.Modal(modalElement, {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        });
         const content = document.getElementById('userDetailContent');
 
         const createdDate = new Date(user.created_at).toLocaleString('vi-VN');
@@ -358,18 +388,17 @@ class UsersManager {
                     <img src="${avatarSrc}" class="img-fluid rounded" style="max-width: 200px;">
                 </div>
                 <div class="col-md-8">
-                    <h5>Thông tin User</h5>
                     <table class="table table-borderless">
                         <tr>
                             <td><strong>ID:</strong></td>
                             <td><code>${user.id}</code></td>
                         </tr>
                         <tr>
-                            <td><strong>Tên:</strong></td>
+                            <td><strong>Name:</strong></td>
                             <td>${user.name}</td>
                         </tr>
                         <tr>
-                            <td><strong>Chức vụ:</strong></td>
+                            <td><strong>Position:</strong></td>
                             <td>${user.position || '-'}</td>
                         </tr>
                         <tr>
@@ -377,11 +406,11 @@ class UsersManager {
                             <td><span class="badge bg-info">${user.model}</span></td>
                         </tr>
                         <tr>
-                            <td><strong>Ngày tạo:</strong></td>
+                            <td><strong>Created Date:</strong></td>
                             <td>${createdDate}</td>
                         </tr>
                         <tr>
-                            <td><strong>Trạng thái:</strong></td>
+                            <td><strong>Status:</strong></td>
                             <td>${user.active ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>'}</td>
                         </tr>
                         <tr>
@@ -397,8 +426,16 @@ class UsersManager {
     }
 
     resetForm() {
-        document.getElementById('addUserForm').reset();
-        document.getElementById('imagePreview').style.display = 'none';
+        const addUserForm = document.getElementById('addUserForm');
+        const imagePreview = document.getElementById('imagePreview');
+        
+        if (addUserForm) {
+            addUserForm.reset();
+        }
+        
+        if (imagePreview) {
+            imagePreview.style.display = 'none';
+        }
     }
 
     editUser(userId) {
@@ -406,8 +443,11 @@ class UsersManager {
         if (!user) return;
 
         // Reset edit form first
-        document.getElementById('editUserForm').reset();
-        document.getElementById('editImagePreview').style.display = 'none';
+        const editModal = document.getElementById('editUserModal');
+        if (editModal) {
+            const form = editModal.querySelector('form');
+            if (form) form.reset();
+        }
         
         // Populate edit form with current user data
         document.getElementById('editUserId').value = user.id;
@@ -423,7 +463,17 @@ class UsersManager {
         }
         
         // Show modal
-        const modal = new bootstrap.Modal(document.getElementById('editUserModal'));
+        const modalElement = document.getElementById('editUserModal');
+        if (!modalElement) {
+            console.error('editUserModal not found');
+            return;
+        }
+        
+        const modal = new bootstrap.Modal(modalElement, {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        });
         modal.show();
     }
 
@@ -456,14 +506,17 @@ class UsersManager {
             };
 
             // If new image is selected, include it
+            let base64 = null;
             if (imageFile) {
-                const base64 = await this.fileToBase64(imageFile);
+                base64 = await this.fileToBase64(imageFile);
                 updateData.image_base64 = base64;
             }
 
+            const token = localStorage.getItem('access_token');
             const response = await fetch(`/users/${userId}`, {
                 method: 'PUT',
                 headers: {
+                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(updateData)
@@ -479,7 +532,7 @@ class UsersManager {
                 if (userIndex !== -1) {
                     this.users[userIndex].name = name;
                     this.users[userIndex].position = position;
-                    if (imageFile) {
+                    if (base64) {
                         this.users[userIndex].image_base64 = base64;
                     }
                     this.filteredUsers = [...this.users];
@@ -573,8 +626,12 @@ class UsersManager {
         }
 
         try {
+            const token = localStorage.getItem('access_token');
             const response = await fetch('/admin/cleanup-orphaned-data', {
-                method: 'POST'
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
             });
 
             const result = await response.json();
@@ -603,8 +660,12 @@ class UsersManager {
         }
 
         try {
+            const token = localStorage.getItem('access_token');
             const response = await fetch('/admin/reset-all-data', {
-                method: 'POST'
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
             });
 
             const result = await response.json();
@@ -620,6 +681,7 @@ class UsersManager {
             this.showError('Lỗi kết nối server');
         }
     }
+
 }
 
 // Initialize users manager when DOM is loaded
