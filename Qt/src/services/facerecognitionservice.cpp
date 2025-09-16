@@ -34,7 +34,7 @@ FaceRecognitionService::~FaceRecognitionService()
 void FaceRecognitionService::setServerUrl(const QString &url)
 {
     m_serverUrl = url;
-    RPI_DEBUG_VAR("Server URL set to", m_serverUrl);
+    // Server URL set
 }
 
 QString FaceRecognitionService::getServerUrl() const
@@ -59,7 +59,7 @@ QVariantMap FaceRecognitionService::recognizeFace(const QByteArray &imageData)
         return recognizeFaceWithServer(imageData);
     } else {
         // Fallback to local recognition
-        RPI_DEBUG_MSG("Network not available, using local recognition");
+        // Network not available, using local recognition
         return recognizeFaceLocally(imageData);
     }
 }
@@ -84,14 +84,14 @@ QVariantMap FaceRecognitionService::recognizeFaceWithServer(const QByteArray &im
 
     QByteArray base64Image = imageToBase64(image);
     
-    RPI_DEBUG_VAR("Sending recognition request with base64 size", base64Image.size());
+    // Sending recognition request
     
     // Create JSON request
     QJsonObject requestObj = createRecognizeRequest(base64Image, capturedImage);
     QJsonDocument doc(requestObj);
     QByteArray jsonData = doc.toJson();
     
-    RPI_DEBUG_VAR("JSON request size", jsonData.size());
+    // JSON request prepared
     
     // Send HTTP request
     QNetworkRequest request(QUrl(m_serverUrl + "/recognize"));
@@ -114,14 +114,12 @@ QVariantMap FaceRecognitionService::recognizeFaceWithServer(const QByteArray &im
 bool FaceRecognitionService::registerFaceWithServer(const QByteArray &imageData, const QString &name, const QString &position)
 {
     if (imageData.isEmpty() || name.isEmpty()) {
-        qDebug() << "Invalid registration data";
         return false;
     }
 
     // Convert image to base64
     QImage image;
     if (!image.loadFromData(imageData)) {
-        qDebug() << "Invalid image data";
         return false;
     }
 
@@ -252,8 +250,8 @@ QVariantList FaceRecognitionService::getUsersFromServer()
         return result;
     }
 
-    // Send HTTP request
-    QNetworkRequest request(QUrl(m_serverUrl + "/users"));
+    // Send HTTP request to public endpoint (no authentication required)
+    QNetworkRequest request(QUrl(m_serverUrl + "/users/public"));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     
     QNetworkReply *reply = m_networkManager->get(request);
@@ -472,41 +470,7 @@ bool FaceRecognitionService::isNetworkAvailable() const
     return m_networkManager != nullptr;
 }
 
-// Legacy methods for backward compatibility
-bool FaceRecognitionService::registerFace(const QByteArray &imageData, int userId)
-{
-    // This method is deprecated, use registerFaceWithServer instead
-    qDebug() << "registerFace is deprecated, use registerFaceWithServer";
-    return false;
-}
-
-QByteArray FaceRecognitionService::extractFaceEncoding(const QByteArray &imageData)
-{
-    // This method is deprecated, server handles encoding
-    qDebug() << "extractFaceEncoding is deprecated, server handles encoding";
-    return QByteArray();
-}
-
-bool FaceRecognitionService::detectFace(const QByteArray &imageData)
-{
-    // This method is deprecated, server handles detection
-    qDebug() << "detectFace is deprecated, server handles detection";
-    return true;
-}
-
-QByteArray FaceRecognitionService::encodeFace(const QByteArray &imageData)
-{
-    // This method is deprecated, server handles encoding
-    qDebug() << "encodeFace is deprecated, server handles encoding";
-    return QByteArray();
-}
-
-double FaceRecognitionService::compareFaces(const QByteArray &encoding1, const QByteArray &encoding2)
-{
-    // This method is deprecated, server handles comparison
-    qDebug() << "compareFaces is deprecated, server handles comparison";
-        return 0.0;
-}
+// Legacy methods removed - use server-based methods instead
 
 // Private slot implementations
 void FaceRecognitionService::onRecognizeReplyFinished()
@@ -514,32 +478,22 @@ void FaceRecognitionService::onRecognizeReplyFinished()
     QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
     if (!reply) return;
     
-    RPI_DEBUG_VAR("Recognition reply received, error", reply->error());
-    RPI_DEBUG_VAR("Response status code", reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt());
-    
     if (reply->error() == QNetworkReply::NoError) {
         QByteArray responseData = reply->readAll();
-        RPI_DEBUG_VAR("Response data size", responseData.size());
-        RPI_DEBUG_VAR("Response data", QString::fromUtf8(responseData));
-        
         QVariantMap result = parseRecognizeResponse(responseData);
-        RPI_DEBUG_VAR("Parsed result", result);
         
         if (result["matched"].toBool()) {
-            RPI_DEBUG_MSG("Face recognized successfully!");
-            RPI_DEBUG_VAR("Emitting faceRecognized signal with userId", result["user_id"].toString() << "name:" << result["name"].toString());
+            qDebug() << "FACE RECOGNITION SUCCESS:" << result["name"].toString();
             emit faceRecognized(
                 result["user_id"].toString(), // Use actual user ID from server
                 result["name"].toString()
             );
         } else {
-            RPI_DEBUG_MSG("Face recognition failed - no match");
-            RPI_DEBUG_MSG("Emitting faceRecognitionFailed signal");
+            qDebug() << "FACE RECOGNITION FAILED";
             emit faceRecognitionFailed();
         }
     } else {
-        RPI_ERROR("Recognition request failed:" << reply->errorString());
-        RPI_DEBUG_VAR("Error code", reply->error());
+        qDebug() << "Recognition request failed:" << reply->errorString();
         emit faceRecognitionFailed();
     }
     

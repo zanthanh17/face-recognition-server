@@ -213,6 +213,51 @@ bool QmlBridge::getCameraAvailable()
     return m_cameraAvailable;
 }
 
+QVariantMap QmlBridge::getSelectedCameraInfo()
+{
+    QVariantMap cameraInfo;
+    if (m_cameraManager) {
+        // Get camera info from CameraManager
+        QList<QCameraDevice> cameras = QMediaDevices::videoInputs();
+        for (const QCameraDevice &camera : cameras) {
+            if (camera.description().contains("DV20") || 
+                camera.description().contains("USB Composite") ||
+                camera.id().contains("video2") ||
+                camera.id().contains("video3")) {
+                cameraInfo["description"] = camera.description();
+                cameraInfo["id"] = camera.id();
+                cameraInfo["isUsbDv"] = true;
+                break;
+            }
+        }
+    }
+    return cameraInfo;
+}
+
+QVariant QmlBridge::getSelectedCameraDevice()
+{
+    qDebug() << "QmlBridge::getSelectedCameraDevice() called";
+    if (m_cameraManager) {
+        QList<QCameraDevice> cameras = QMediaDevices::videoInputs();
+        qDebug() << "Found" << cameras.size() << "cameras in QmlBridge";
+        
+        for (const QCameraDevice &camera : cameras) {
+            qDebug() << "Checking camera:" << camera.description() << "ID:" << camera.id();
+            if (camera.description().contains("DV20") || 
+                camera.description().contains("USB Composite") ||
+                camera.id().contains("video2") ||
+                camera.id().contains("video3")) {
+                qDebug() << "Found DV20 USB camera, returning device";
+                return QVariant::fromValue(camera);
+            }
+        }
+        qDebug() << "No USB DV camera found";
+    } else {
+        qDebug() << "CameraManager is null";
+    }
+    return QVariant();
+}
+
 QVariantMap QmlBridge::recognizeFace(const QByteArray &imageData)
 {
     QVariantMap result = m_faceRecognitionService->recognizeFace(imageData);
@@ -228,15 +273,7 @@ QVariantMap QmlBridge::recognizeFace(const QByteArray &imageData)
     return result;
 }
 
-bool QmlBridge::registerFace(const QByteArray &imageData, int userId)
-{
-    return m_faceRecognitionService->registerFace(imageData, userId);
-}
-
-QByteArray QmlBridge::extractFaceEncoding(const QByteArray &imageData)
-{
-    return m_faceRecognitionService->extractFaceEncoding(imageData);
-}
+// Deprecated methods removed - use server-based methods instead
 
 // Server API operations
 QVariantMap QmlBridge::recognizeFaceWithServer(const QByteArray &imageData, const QString &capturedImage)
@@ -387,11 +424,18 @@ QByteArray QmlBridge::readImageFile(const QString &filePath)
 
 QString QmlBridge::convertImageToBase64(const QImage &image)
 {
+    // Validate input image
+    if (image.isNull() || image.width() == 0 || image.height() == 0) {
+        qDebug() << "Invalid image provided for base64 conversion";
+        return QString();
+    }
+    
     QByteArray imageData;
     QBuffer buffer(&imageData);
     buffer.open(QIODevice::WriteOnly);
     
-    if (image.save(&buffer, "JPEG", 85)) {
+    // Use higher quality to reduce corruption
+    if (image.save(&buffer, "JPEG", 90)) {
         QString base64String = imageData.toBase64();
         qDebug() << "Converted image to base64, size:" << base64String.length();
         return base64String;
@@ -403,6 +447,12 @@ QString QmlBridge::convertImageToBase64(const QImage &image)
 
 QString QmlBridge::cropImageToFaceFrame(const QImage &image, int frameWidth, int frameHeight)
 {
+    // Validate input image
+    if (image.isNull() || image.width() == 0 || image.height() == 0) {
+        qDebug() << "Invalid image provided for face frame cropping";
+        return QString();
+    }
+    
     // Calculate the face frame area (center 78% of the image)
     int imageWidth = image.width();
     int imageHeight = image.height();
@@ -414,20 +464,33 @@ QString QmlBridge::cropImageToFaceFrame(const QImage &image, int frameWidth, int
     int x = (imageWidth - frameSize) / 2;
     int y = (imageHeight - frameSize) / 2;
     
+    // Validate crop parameters
+    if (x < 0 || y < 0 || frameSize <= 0 || x + frameSize > imageWidth || y + frameSize > imageHeight) {
+        qDebug() << "Invalid crop parameters, using full image";
+        frameSize = qMin(imageWidth, imageHeight);
+        x = (imageWidth - frameSize) / 2;
+        y = (imageHeight - frameSize) / 2;
+    }
+    
     // Crop the image to the face frame area
     QImage croppedImage = image.copy(x, y, frameSize, frameSize);
     
-    // Convert to base64
+    if (croppedImage.isNull()) {
+        qDebug() << "Failed to crop image";
+        return QString();
+    }
+    
+    // Convert to base64 with higher quality
     QByteArray imageData;
     QBuffer buffer(&imageData);
     buffer.open(QIODevice::WriteOnly);
     
-    if (croppedImage.save(&buffer, "JPEG", 85)) {
+    if (croppedImage.save(&buffer, "JPEG", 90)) {
         QString base64String = imageData.toBase64();
         qDebug() << "Cropped image to face frame, size:" << base64String.length();
         return base64String;
     } else {
-        qDebug() << "Failed to crop image to face frame";
+        qDebug() << "Failed to save cropped image to JPEG";
         return QString();
     }
 }
@@ -531,17 +594,29 @@ void QmlBridge::captureAndRecognizeFromQML(const QImage &image, const QString &c
 {
     qDebug() << "Received image from QML, size:" << image.size();
     
-    // Convert QImage to QByteArray (JPEG)
+    // Validate input image
+    if (image.isNull() || image.width() == 0 || image.height() == 0) {
+        qDebug() << "Invalid image received from QML";
+        emit faceRecognitionFailed();
+        return;
+    }
+    
+    // Convert QImage to QByteArray (JPEG) with higher quality
     QByteArray imageData;
     QBuffer buffer(&imageData);
     buffer.open(QIODevice::WriteOnly);
-    image.save(&buffer, "JPEG", 80); // 80% quality
-    buffer.close();
     
-    qDebug() << "Converted image to JPEG, size:" << imageData.size();
-    
-    // Process recognition with captured image
-    processRecognition(imageData, capturedImage);
+    if (image.save(&buffer, "JPEG", 90)) {
+        buffer.close();
+        qDebug() << "Converted image to JPEG successfully, size:" << imageData.size();
+        
+        // Process recognition with captured image
+        processRecognition(imageData, capturedImage);
+    } else {
+        qDebug() << "Failed to convert image to JPEG";
+        buffer.close();
+        emit faceRecognitionFailed();
+    }
 }
 
 QVariantMap QmlBridge::getSystemMetrics()

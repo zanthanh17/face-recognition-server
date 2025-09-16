@@ -1,0 +1,137 @@
+/* Standard Sidebar Styles */
+:root {
+    --sidebar-bg: #1e293b;
+    --sidebar-hover: #334155;
+    --sidebar-active: #3b82f6;
+    --secondary-color: #3b82f6;
+    --transition: all 0.3s ease;
+}
+
+/* Sidebar */
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 70px;
+    background: var(--sidebar-bg);
+    color: white;
+    z-index: 1000;
+    transition: var(--transition);
+    overflow-y: auto;
+}
+
+.sidebar:hover {
+    width: 280px;
+}
+
+.sidebar-header {
+    padding: 1rem;
+    border-bottom: 1px solid #334155;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sidebar:hover .sidebar-header {
+    padding: 1.5rem;
+    justify-content: space-between;
+}
+
+.sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: white;
+    text-decoration: none;
+}
+
+.sidebar-brand span {
+    display: none;
+}
+
+.sidebar:hover .sidebar-brand span {
+    display: inline;
+}
+
+.sidebar-brand i {
+    font-size: 1.75rem;
+    color: var(--secondary-color);
+}
+
+.sidebar-nav {
+    padding: 1rem 0;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 80px);
+}
+
+.nav-item {
+    margin: 0.25rem 0;
+}
+
+.nav-item.mt-auto {
+    margin-top: auto;
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    color: #cbd5e1;
+    text-decoration: none;
+    transition: var(--transition);
+    border-radius: 0;
+    justify-content: center;
+}
+
+.sidebar:hover .nav-link {
+    padding: 0.75rem 1.5rem;
+    justify-content: flex-start;
+}
+
+.nav-link span {
+    display: none;
+}
+
+.sidebar:hover .nav-link span {
+    display: inline;
+}
+
+.nav-link:hover {
+    background: var(--sidebar-hover);
+    color: white;
+}
+
+.nav-link.active {
+    background: var(--sidebar-active);
+    color: white;
+    border-right: 3px solid white;
+}
+
+.nav-link i {
+    width: 20px;
+    text-align: center;
+}
+
+/* Main Content Adjustment */
+.main-wrapper {
+    margin-left: 70px;
+    min-height: 100vh;
+    background: #f8fafc;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .sidebar {
+        transform: translateX(-100%);
+    }
+    
+    .main-wrapper {
+        margin-left: 0;
+    }
+}
+

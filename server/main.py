@@ -18,9 +18,11 @@ from pydantic import BaseModel, Field
 # ---------- Configuration ----------
 STORAGE_DIR = Path(__file__).parent / "storage"
 STORAGE_DIR.mkdir(parents=True, exist_ok=True)
-EMBEDDINGS_PATH = STORAGE_DIR / "embeddings.json"
-LOGS_PATH = STORAGE_DIR / "attendance_logs.jsonl"
-TEMPLATES_DIR = Path(__file__).parent / "templates"
+STORAGE_DATA_DIR = STORAGE_DIR / "data"
+STORAGE_DATA_DIR.mkdir(parents=True, exist_ok=True)
+EMBEDDINGS_PATH = STORAGE_DATA_DIR / "embeddings.json"
+LOGS_PATH = STORAGE_DATA_DIR / "attendance_logs.jsonl"
+TEMPLATES_DIR = Path(__file__).parent / "web" / "templates"
 
 # Authentication configuration
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-this-in-production")
@@ -156,7 +158,7 @@ def log_attendance(user_id: str, name: str, matched: bool, distance: Optional[fl
 
 def load_html_template(template_name: str) -> str:
     """Load HTML template from file."""
-    template_path = TEMPLATES_DIR / f"{template_name}.html"
+    template_path = TEMPLATES_DIR / "pages" / f"{template_name}.html"
     if template_path.exists():
         with template_path.open("r", encoding="utf-8") as f:
             return f.read()
@@ -190,9 +192,20 @@ def calculate_work_hours(logs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     elif last_check_out_dt.hour < 6 and first_check_in_dt.hour >= 22:
         cross_day = True
     
+    # Get user image from embeddings
+    user_image = None
+    try:
+        embeddings = load_embeddings()
+        user_data = next((u for u in embeddings if u["id"] == logs[0]["user_id"]), None)
+        if user_data and "image_base64" in user_data:
+            user_image = f"data:image/jpeg;base64,{user_data['image_base64']}"
+    except:
+        pass
+    
     return [{
         "user_id": logs[0]["user_id"],
         "name": logs[0]["name"],
+        "avatar": user_image,
         "first_check_in": first_check_in,
         "last_check_out": last_check_out,
         "work_hours": round(work_hours, 2),
@@ -299,6 +312,17 @@ def authenticate_user(username: str, password: str):
 def health_check() -> Dict[str, str]:
     """Health check endpoint."""
     return {"status": "ok"}
+
+
+@app.get("/users/public")
+def get_users_public() -> Dict[str, Any]:
+    """Get all registered users (public endpoint for Qt app)."""
+    embeddings = load_embeddings()
+    return {
+        "total_users": len(embeddings),
+        "active_users": len([e for e in embeddings if e.get("active", True)]),
+        "users": embeddings
+    }
 
 
 @app.post("/login", response_model=Token)
@@ -735,7 +759,7 @@ def get_attendance_logs(limit: int = 50):
 
 
 @app.get("/attendance/work-hours")
-def get_work_hours(date: Optional[str] = None):
+def get_work_hours(date: Optional[str] = None, user_id: Optional[str] = None):
     """Calculate work hours for users on a specific date"""
     if not LOGS_PATH.exists():
         return {"users": []}
@@ -760,7 +784,9 @@ def get_work_hours(date: Optional[str] = None):
                 # Convert UTC timestamp to Vietnam timezone
                 log_date = datetime.fromtimestamp(log["ts"], tz=vietnam_tz).date()
                 if log_date == target_date and log["matched"]:
-                    daily_logs.append(log)
+                    # Filter by user_id if specified
+                    if user_id is None or log["user_id"] == user_id:
+                        daily_logs.append(log)
             except:
                 continue
         
@@ -785,7 +811,7 @@ def get_work_hours(date: Optional[str] = None):
 
 
 @app.get("/attendance/work-hours/summary")
-def get_work_hours_summary(start_date: Optional[str] = None, end_date: Optional[str] = None):
+def get_work_hours_summary(start_date: Optional[str] = None, end_date: Optional[str] = None, user_id: Optional[str] = None):
     """Get work hours summary for a date range"""
     if not LOGS_PATH.exists():
         return {"summary": []}
@@ -812,7 +838,9 @@ def get_work_hours_summary(start_date: Optional[str] = None, end_date: Optional[
                 # Convert UTC timestamp to Vietnam timezone
                 log_date = datetime.fromtimestamp(log["ts"], tz=vietnam_tz).date()
                 if start <= log_date <= end and log["matched"]:
-                    range_logs.append(log)
+                    # Filter by user_id if specified
+                    if user_id is None or log["user_id"] == user_id:
+                        range_logs.append(log)
             except:
                 continue
         
@@ -935,21 +963,38 @@ def get_dashboard():
     from fastapi.responses import HTMLResponse
     return HTMLResponse(content=load_html_template("dashboard"))
 
+@app.get("/users.html")
+def get_users_page():
+    """Serve users management page"""
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=load_html_template("users"))
+
+@app.get("/attendance.html")
+def get_attendance_page():
+    """Serve attendance history page"""
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=load_html_template("attendance"))
+
+@app.get("/workhours.html")
+def get_workhours_page():
+    """Serve work hours tracking page"""
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=load_html_template("workhours"))
 
 # Web interface endpoints
-@app.get("/web/")
-def get_web_home():
-    """Web interface home page"""
-    from fastapi.responses import FileResponse
-    return FileResponse("/app/server/web/index.html")
 
-@app.get("/web/{path:path}")
-def get_web_file(path: str):
-    """Serve web interface files"""
+@app.get("/{path:path}")
+def get_static_file(path: str):
+    """Serve static files directly (without /web/ prefix)"""
     from fastapi.responses import FileResponse
-    file_path = f"/app/server/web/{path}"
-    if os.path.exists(file_path):
-        return FileResponse(file_path)
+    # Try local path first, then Docker path
+    local_path = f"web/static/{path}"
+    docker_path = f"/app/server/web/static/{path}"
+    
+    if os.path.exists(local_path):
+        return FileResponse(local_path)
+    elif os.path.exists(docker_path):
+        return FileResponse(docker_path)
     else:
         raise HTTPException(status_code=404, detail="File not found")
 

@@ -1,0 +1,4 @@
+{"ts": 1757206800, "user_id": "97ecd78a-8bd8-4f75-bc3a-00ccec8edb2e", "name": "Vo Van Thanh", "action": "check_in", "confidence": 0.95, "matched": true}
+{"ts": 1757221200, "user_id": "97ecd78a-8bd8-4f75-bc3a-00ccec8edb2e", "name": "Vo Van Thanh", "action": "check_out", "confidence": 0.92, "matched": true}
+{"ts": 1757224800, "user_id": "97ecd78a-8bd8-4f75-bc3a-00ccec8edb2e", "name": "Vo Van Thanh", "action": "check_in", "confidence": 0.94, "matched": true}
+{"ts": 1757239200, "user_id": "97ecd78a-8bd8-4f75-bc3a-00ccec8edb2e", "name": "Vo Van Thanh", "action": "check_out", "confidence": 0.91, "matched": true}

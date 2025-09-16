@@ -24,8 +24,6 @@ public:
 
     // Face recognition operations
     QVariantMap recognizeFace(const QByteArray &imageData);
-    bool registerFace(const QByteArray &imageData, int userId);
-    QByteArray extractFaceEncoding(const QByteArray &imageData);
 
     // Server API operations
     QVariantMap recognizeFaceWithServer(const QByteArray &imageData, const QString &capturedImage = QString());
@@ -75,9 +73,6 @@ private:
     QString m_deviceId;
     
     // Face recognition helper methods
-    bool detectFace(const QByteArray &imageData);
-    QByteArray encodeFace(const QByteArray &imageData);
-    double compareFaces(const QByteArray &encoding1, const QByteArray &encoding2);
     QVariantMap recognizeFaceLocally(const QByteArray &imageData);
     
     // Server communication helper methods

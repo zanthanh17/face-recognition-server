@@ -14,18 +14,42 @@ find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Quick)
 set(QT_VERSION_MAJOR 6)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Quick Sql Network Multimedia)
 
-# Find OpenCV for face recognition (optional for now)
+# Find OpenCV for face recognition (optional)
 find_package(OpenCV QUIET)
 
-# SQLite3 is included with Qt SQL module
-# No need for separate SQLite3 package on Windows
+# Find GStreamer for Raspberry Pi camera support
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_check_modules(GSTREAMER QUIET gstreamer-1.0)
+    pkg_check_modules(GSTREAMER_VIDEO QUIET gstreamer-video-1.0)
+    pkg_check_modules(GSTREAMER_APP QUIET gstreamer-app-1.0)
+endif()
+
+# Raspberry Pi optimizations
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm.*" OR CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
+    message(STATUS "Building for Raspberry Pi")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -DNDEBUG")
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=armv8-a -mtune=cortex-a72")
+    endif()
+endif()
 
 # Include directories
 if(OpenCV_FOUND)
     include_directories(${OpenCV_INCLUDE_DIRS})
 endif()
 
-# Add source directory to include path for debug_config.h
+# Include GStreamer directories
+if(GSTREAMER_FOUND)
+    include_directories(${GSTREAMER_INCLUDE_DIRS})
+    include_directories(${GSTREAMER_VIDEO_INCLUDE_DIRS})
+    include_directories(${GSTREAMER_APP_INCLUDE_DIRS})
+    message(STATUS "GStreamer found - enabling camera support")
+else()
+    message(STATUS "GStreamer not found - camera support may be limited")
+endif()
+
+# Add source directory to include path
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 set(PROJECT_SOURCES
@@ -43,6 +67,7 @@ set(PROJECT_SOURCES
         src/services/cachemanager.h
         src/bridge/qmlbridge.cpp
         src/bridge/qmlbridge.h
+        src/qt_logging_config.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -50,17 +75,13 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
     )
-# Define target properties for Android with Qt 6 as:
-#    set_property(TARGET pbl5_facelogin APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
-#                 ${CMAKE_CURRENT_SOURCE_DIR}/android)
-# For more information, see https://doc.qt.io/qt-6/qt-add-executable.html#target-creation
+# Android configuration (if needed)
 else()
     if(ANDROID)
         add_library(pbl5_facelogin SHARED
             ${PROJECT_SOURCES}
         )
-# Define properties for Android with Qt 5 after find_package() calls as:
-#    set(ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
+# Android properties for Qt 5
     else()
         add_executable(pbl5_facelogin
           ${PROJECT_SOURCES}
@@ -76,9 +97,17 @@ if(OpenCV_FOUND)
     target_link_libraries(pbl5_facelogin PRIVATE ${OpenCV_LIBS})
 endif()
 
-# Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
-# If you are developing for iOS or macOS you should consider setting an
-# explicit, fixed bundle identifier manually though.
+# Link GStreamer libraries for Raspberry Pi camera support
+if(GSTREAMER_FOUND)
+    target_link_libraries(pbl5_facelogin PRIVATE ${GSTREAMER_LIBRARIES})
+    target_link_libraries(pbl5_facelogin PRIVATE ${GSTREAMER_VIDEO_LIBRARIES})
+    target_link_libraries(pbl5_facelogin PRIVATE ${GSTREAMER_APP_LIBRARIES})
+    target_compile_options(pbl5_facelogin PRIVATE ${GSTREAMER_CFLAGS_OTHER})
+    target_compile_options(pbl5_facelogin PRIVATE ${GSTREAMER_VIDEO_CFLAGS_OTHER})
+    target_compile_options(pbl5_facelogin PRIVATE ${GSTREAMER_APP_CFLAGS_OTHER})
+endif()
+
+# macOS bundle configuration
 if(${QT_VERSION_MAJOR} LESS 6)
   set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.pbl5_facelogin)
 endif()

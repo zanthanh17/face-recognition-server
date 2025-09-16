@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Tracking - FaceLog</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="/css/style.css" rel="stylesheet">
+    <link href="/css/pages.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <a href="/users.html" class="sidebar-brand">
+                <i class="fas fa-user-shield"></i>
+                <span>FaceLog</span>
+            </a>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-item">
+                <a href="/users.html" class="nav-link" data-page="users">
+                    <i class="fas fa-users"></i>
+                    <span>Users</span>
+                </a>
+            </div>
+            <div class="nav-item">
+                <a href="/attendance.html" class="nav-link" data-page="attendance">
+                    <i class="fas fa-history"></i>
+                    <span>History In/Out</span>
+                </a>
+            </div>
+            <div class="nav-item">
+                <a href="/workhours.html" class="nav-link" data-page="workhours">
+                    <i class="fas fa-clock"></i>
+                    <span>Time Tracking</span>
+                </a>
+            </div>
+            <div class="nav-item mt-auto">
+                <a href="#" class="nav-link" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </nav>
+                    </div>
+
+    <!-- Main Wrapper -->
+    <div class="main-wrapper">
+        <!-- Top Header -->
+        <div class="top-header">
+            <h1 class="page-title">Time Tracking</h1>
+            <div class="header-actions">
+                <button class="btn btn-secondary" onclick="workHoursManager.exportData()">
+                    <i class="fas fa-download"></i>
+                    Export CSV
+                        </button>
+                <button class="btn btn-secondary" onclick="workHoursManager.refreshData()">
+                    <i class="fas fa-sync-alt"></i>
+                    Refresh
+                        </button>
+            </div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="content-area">
+            <!-- Alert Container -->
+            <div id="alertContainer"></div>
+
+        <!-- Stats Cards -->
+            <div class="stats-grid fade-in">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                    </div>
+                    <div class="stat-number" id="total-workers">0</div>
+                    <div class="stat-label">Total Workers</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">
+                            <i class="fas fa-clock"></i>
+            </div>
+                    </div>
+                    <div class="stat-number" id="total-hours">0h</div>
+                    <div class="stat-label">Total Hours</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">
+                            <i class="fas fa-user-check"></i>
+            </div>
+                    </div>
+                    <div class="stat-number" id="active-workers">0</div>
+                    <div class="stat-label">Workers Today</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">
+                            <i class="fas fa-chart-line"></i>
+            </div>
+                    </div>
+                    <div class="stat-number" id="avg-hours">0h</div>
+                    <div class="stat-label">Average/Person</div>
+            </div>
+        </div>
+
+            <!-- Main Card -->
+            <div class="main-card fade-in">
+                <!-- Filters Section -->
+                <div class="filters-section">
+                    <div class="row g-3">
+            <div class="col-md-6">
+                            <label class="form-label">Select Employee</label>
+                <select class="form-control" id="employeeFilter">
+                    <option value="">All Employees</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                            <label class="form-label">Select Day</label>
+                <select class="form-control" id="daySelect">
+                    <option value="today">Today</option>
+                    <option value="yesterday">Yesterday</option>
+                    <option value="thisWeek">This Week</option>
+                    <option value="lastWeek">Last Week</option>
+                    <option value="thisMonth">This Month</option>
+                    <option value="lastMonth">Last Month</option>
+                    <option value="custom">Custom Day</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Hidden input for custom date -->
+        <input type="date" id="customDate" style="display: none;" class="form-control mt-2">
+
+        <!-- View Toggle -->
+                    <div class="row mt-3">
+            <div class="col-12">
+                <div class="btn-group" role="group">
+                    <input type="radio" class="btn-check" name="viewMode" id="dailyView" value="daily" checked>
+                    <label class="btn btn-outline-primary" for="dailyView">
+                                    <i class="fas fa-calendar-day"></i> Daily View
+                    </label>
+                    
+                    <input type="radio" class="btn-check" name="viewMode" id="summaryView" value="summary">
+                    <label class="btn btn-outline-primary" for="summaryView">
+                                    <i class="fas fa-calendar-week"></i> Summary View
+                    </label>
+                </div>
+            </div>
+        </div>
+            </div>
+
+                <!-- Table Section -->
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="workHoursTable">
+                        <thead>
+                            <tr>
+                                    <th>USER</th>
+                                    <th>DATE</th>
+                                    <th>FIRST CHECK IN</th>
+                                    <th>LAST CHECK OUT</th>
+                                    <th>TOTAL HOURS</th>
+                                    <th>SCAN COUNT</th>
+                                    <th>STATUS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="workHoursTableBody">
+                            <tr>
+                                <td colspan="7" class="text-center">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="main-card">
+                    <div class="card-body">
+                        <div id="workHoursTable">
+                            <!-- Table will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/pages/workhours.js?v=2.6"></script>
+    <script>
+        function logout() {
+            localStorage.removeItem('access_token');
+            window.location.href = '/';
+        }
+
+        // Set active state based on current page
+        function setActiveNavItem() {
+            const currentPage = getCurrentPageName();
+            const navLinks = document.querySelectorAll('.nav-link[data-page]');
+            
+            navLinks.forEach(link => {
+                if (link.getAttribute('data-page') === currentPage) {
+                    link.classList.add('active');
+                } else {
+                    link.classList.remove('active');
+                }
+            });
+        }
+
+        function getCurrentPageName() {
+            const path = window.location.pathname;
+            if (path.includes('users.html')) return 'users';
+            if (path.includes('attendance.html')) return 'attendance';
+            if (path.includes('workhours.html')) return 'workhours';
+            return 'users'; // default
+        }
+
+        // Check authentication on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                window.location.href = '/';
+                return;
+            }
+
+            // Set active navigation item
+            setActiveNavItem();
+
+            // Initialize work hours manager
+            if (typeof WorkHoursManager !== 'undefined') {
+                window.workHoursManager = new WorkHoursManager();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -52,11 +52,11 @@ public:
     Q_INVOKABLE void stopCamera();
     Q_INVOKABLE QByteArray captureImage();
     Q_INVOKABLE bool getCameraAvailable();
+    Q_INVOKABLE QVariantMap getSelectedCameraInfo();
+    Q_INVOKABLE QVariant getSelectedCameraDevice();
 
     // Face recognition operations
     Q_INVOKABLE QVariantMap recognizeFace(const QByteArray &imageData);
-    Q_INVOKABLE bool registerFace(const QByteArray &imageData, int userId);
-    Q_INVOKABLE QByteArray extractFaceEncoding(const QByteArray &imageData);
     
     // Server API operations
     Q_INVOKABLE QVariantMap recognizeFaceWithServer(const QByteArray &imageData, const QString &capturedImage = QString());

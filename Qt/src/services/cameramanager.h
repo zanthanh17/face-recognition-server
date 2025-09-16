@@ -43,6 +43,10 @@ private:
     QImageCapture *m_imageCapture;
     QByteArray m_lastCapturedImage;
     bool m_captureInProgress;
+    QCameraDevice m_preferredCamera;
+    
+    // Raspberry Pi specific methods
+    bool checkRaspberryPiCamera();
 };
 
 #endif // CAMERAMANAGER_H

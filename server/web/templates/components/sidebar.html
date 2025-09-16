@@ -1,0 +1,60 @@
+<!-- Standard Sidebar Component -->
+<div class="sidebar">
+    <div class="sidebar-header">
+        <a href="/users.html" class="sidebar-brand">
+            <i class="fas fa-user-shield"></i>
+            <span>FaceLog</span>
+        </a>
+    </div>
+    <nav class="sidebar-nav">
+        <div class="nav-item">
+            <a href="/users.html" class="nav-link" data-page="users">
+                <i class="fas fa-users"></i>
+                <span>Users</span>
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="/attendance.html" class="nav-link" data-page="attendance">
+                <i class="fas fa-history"></i>
+                <span>History In/Out</span>
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="/workhours.html" class="nav-link" data-page="workhours">
+                <i class="fas fa-clock"></i>
+                <span>Time Tracking</span>
+            </a>
+        </div>
+        <div class="nav-item mt-auto">
+            <a href="#" class="nav-link" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Logout</span>
+            </a>
+        </div>
+    </nav>
+</div>
+
+<script>
+// Set active state based on current page
+document.addEventListener('DOMContentLoaded', function() {
+    const currentPage = getCurrentPageName();
+    const navLinks = document.querySelectorAll('.nav-link[data-page]');
+    
+    navLinks.forEach(link => {
+        if (link.getAttribute('data-page') === currentPage) {
+            link.classList.add('active');
+        } else {
+            link.classList.remove('active');
+        }
+    });
+});
+
+function getCurrentPageName() {
+    const path = window.location.pathname;
+    if (path.includes('users.html')) return 'users';
+    if (path.includes('attendance.html')) return 'attendance';
+    if (path.includes('workhours.html')) return 'workhours';
+    return 'users'; // default
+}
+</script>
+
