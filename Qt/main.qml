@@ -93,13 +93,24 @@ Window {
                 target: loginLoader.item
                 ignoreUnknownSignals: true
                 function onOpenSettingsRequested() {
+                    console.log("Login: Opening settings - deactivating camera")
                     if (loginLoader.item && loginLoader.item.deactivateCamera)
                         loginLoader.item.deactivateCamera()
                     stack.push(settingsComponent)
                 }
                 function onBackToHomeRequested() {
-                    console.log("Going back to Home from Login")
+                    console.log("Login: Going back to Home - deactivating camera")
+                    if (loginLoader.item && loginLoader.item.deactivateCamera)
+                        loginLoader.item.deactivateCamera()
                     stack.pop()
+                }
+            }
+            
+            // Handle when Login page is about to be destroyed
+            Component.onDestruction: {
+                console.log("Login component being destroyed - ensuring camera is stopped")
+                if (loginLoader.item && loginLoader.item.deactivateCamera) {
+                    loginLoader.item.deactivateCamera()
                 }
             }
         }
@@ -231,65 +242,20 @@ Window {
                 ignoreUnknownSignals: true
                 function onBackRequested() { stack.pop() }
                 function onEditRequested(userId) {
-                    // Deprecated: now using openCaptureRequested
-                    stack.push(captureFaceComponent, {
-                        userId: userDetailRoot.userId,
-                        userName: userDetailRoot.userName,
-                        userDepartment: userDetailRoot.userDepartment,
-                        currentAvatar: userDetailRoot.userAvatar
-                    })
+                    // Redirect to Login page for face capture
+                    console.log("Redirecting to Login page for face capture")
+                    stack.push(loginComponent)
                 }
                 function onOpenCaptureRequested(userId, name, dept, currentAvatar) {
-                    stack.push(captureFaceComponent, {
-                        userId: userDetailRoot.userId,
-                        userName: userDetailRoot.userName,
-                        userDepartment: userDetailRoot.userDepartment,
-                        currentAvatar: userDetailRoot.userAvatar
-                    })
+                    // Redirect to Login page for face capture
+                    console.log("Redirecting to Login page for face capture")
+                    stack.push(loginComponent)
                 }
             }
         }
     }
 
-    // ---------- CaptureFace (chụp mặt) ----------
-    Component {
-        id: captureFaceComponent
-        Item {
-            id: captureRoot
-            // Props passed from previous page
-            property string userId: ""
-            property string userName: ""
-            property string userDepartment: ""
-            property url currentAvatar: "qrc:/assets/images/user.png"
-
-            focus: true
-
-            Loader {
-                id: captureLoader
-                anchors.fill: parent
-                source: "qrc:/ui/pages_component/CaptureFace.qml"
-                onLoaded: {
-                    if (!item) return
-                    item.userId = captureRoot.userId
-                    item.userName = captureRoot.userName
-                    item.userDepartment = captureRoot.userDepartment
-                    item.currentAvatar = captureRoot.currentAvatar
-                }
-            }
-            Connections {
-                target: captureLoader.item
-                ignoreUnknownSignals: true
-                function onBackRequested() { stack.pop() }
-                function onCaptureAccepted(newAvatarUrl) {
-                    // Pop back to UserInfor and update avatar there
-                    stack.pop()
-                    if (stack.currentItem && stack.currentItem.userAvatar !== undefined) {
-                        stack.currentItem.userAvatar = newAvatarUrl
-                    }
-                }
-            }
-        }
-    }
+    // CaptureFace component removed - using Login page instead
 
     // ---------- NetworkSettings (từ SettingAdmin) ----------
     Component {

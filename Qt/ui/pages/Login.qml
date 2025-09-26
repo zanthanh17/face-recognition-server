@@ -2,11 +2,9 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Window
-import QtMultimedia
 import "../dialogs"
 
-Window {
+Item {
     id: loginPage
     signal openSettingsRequested()
     signal backToHomeRequested()
@@ -14,8 +12,8 @@ Window {
     // Store last captured image for avatar
     property string lastCapturedImage: ""
     
-    // Camera device property
-    property var usbDvCameraDevice: null
+    // Timer for capturing frames
+    property bool cameraRunning: false
     
     // Property to track if we're currently processing face recognition
     property bool isProcessingFace: false
@@ -26,15 +24,10 @@ Window {
     // Property to track if face was detected in last check
     property bool lastCaptureHadFace: false
     
-    // Window properties
-    width: 480
-    height: 800
-    visible: true
-    title: "Face Login"
-    
     // Expose function to deactivate camera from outside if needed
     function deactivateCamera() { 
-        if (cam) cam.active = false 
+        backend.stopCameraGrabber()
+        cameraRunning = false
     }
     
     // Function to show camera error messages
@@ -44,21 +37,16 @@ Window {
         errorTimer.start()
     }
     
-    // Focus scope for keyboard handling
-    FocusScope {
-        id: focusScope
-        anchors.fill: parent
-        focus: true
-        
-        // Background color
-        Rectangle {
-            anchors.fill: parent
-            color: "#EDEFF2"
-        }
-    
     // Expose function to activate camera from outside if needed
     function activateCamera() { 
-        if (cam) cam.active = true 
+        backend.startCameraGrabber(30)
+        cameraRunning = true
+    }
+    
+    // Background color
+    Rectangle {
+        anchors.fill: parent
+        color: "#EDEFF2"
     }
 
     // ====== dialogs ======
@@ -92,171 +80,53 @@ Window {
     }
 
     // ====== camera & overlay ======
-    // Camera device for USB DV camera
-    property var usbDvCameraDevice: null
-    
     Rectangle {
         id: cameraFrame
         anchors.fill: parent
         color: "#EDEFF2"
 
-        MediaDevices {
-            id: mediaDevices
-        }
-
-        Camera {
-            id: cam
-            active: false
-            cameraDevice: usbDvCameraDevice
-            
-            onCameraDeviceChanged: {
-                // Camera device changed
-            }
-            
-            // Optimize camera settings to reduce corruption
-            focusMode: Camera.FocusModeAuto
-            flashMode: Camera.FlashOff
-            
-            // Error handling
-            onErrorOccurred: function(error, errorString) {
-                console.log("Camera error:", errorString)
-                if (error === Camera.CameraError.CameraNotAvailable) {
-                    // Try to use default camera as fallback
-                    cam.cameraDevice = mediaDevices.defaultVideoInput
-                } else if (error === Camera.CameraError.CameraPermissionDenied) {
-                    showCameraError("Camera permission denied. Please check camera permissions.")
-                } else if (error === Camera.CameraError.CameraInUse) {
-                    showCameraError("Camera is in use by another application. Please close other camera applications.")
-                } else {
-                    showCameraError("Camera error: " + errorString)
-                }
-            }
-            
-            onActiveChanged: {
-                console.log("Camera active state changed:", active)
-                if (active) {
-                    console.log("Camera activated - timer should start")
-                } else {
-                    console.log("Camera deactivated - timer should stop")
-                }
-            }
-        }
-
-        VideoOutput {
-            id: preview
+        // Camera preview using image provider from C++
+        Image {
+            id: cameraPreview
             anchors.fill: parent
-            fillMode: VideoOutput.PreserveAspectCrop
-            
-            onVisibleChanged: {
-                // VideoOutput visible changed
-            }
+            fillMode: Image.PreserveAspectCrop
+            source: "image://frames/current"
+            cache: false
         }
-
-        CaptureSession {
-            id: captureSession
-            camera: cam
-            videoOutput: preview
-            imageCapture: imageCapture
-        }
-
-        ImageCapture {
-            id: imageCapture
-        }
-
+        
+        // Update preview when new frame is ready
         Connections {
-            target: cam
-            function onActiveChanged() {
-                // Camera active changed
-            }
-        }
-        
-        // Initialize camera selection on component creation
-        Component.onCompleted: {
-            // Get camera device from C++ CameraManager
-            var cameraDevice = backend.getSelectedCameraDevice()
-            if (cameraDevice && cameraDevice !== null) {
-                usbDvCameraDevice = cameraDevice
-                
-                // Setup capture session
-                captureSession.camera = cam
-                captureSession.videoOutput = preview
-                captureSession.imageCapture = imageCapture
-            } else {
-                console.log("Using default camera device")
-                // Try to use default camera device
-                usbDvCameraDevice = mediaDevices.defaultVideoInput
-                
-                // Setup capture session with default camera
-                captureSession.camera = cam
-                captureSession.videoOutput = preview
-                captureSession.imageCapture = imageCapture
-            }
-            
-            // Check if running on Raspberry Pi and show appropriate message
-            if (cameraDevice === null || cameraDevice === undefined) {
-                showCameraError("No camera detected. Please check camera connection and permissions.")
+            target: backend
+            function onFrameReady() {
+                // Update camera preview with timestamp to force refresh
+                cameraPreview.source = "image://frames/current?ts=" + Date.now()
             }
         }
         
         
         
-        // Handle page visibility changes
-        onVisibleChanged: {
-            if (visible) {
-                cam.active = true
-                // Force camera selection after a short delay
-                cameraSelectionTimer.start()
-            } else {
-                cam.active = false
-                cameraSelectionTimer.stop()
-            }
-        }
-        
-        // Timer to force camera selection
-        Timer {
-            id: cameraSelectionTimer
-            interval: 5000 
-            repeat: false
-            onTriggered: {
-                // Get available cameras
-                var cameras = QtMultimedia.MediaDevices.videoInputs()
+        // Function to capture current frame for face recognition
+        function captureForRecognition() {
+            if (!loginPage.isProcessingFace && cameraRunning) {
+                loginPage.isProcessingFace = true
                 
-                // Find USB camera (DV20 USB)
-                for (var i = 0; i < cameras.length; i++) {
-                    if (cameras[i].description.includes("DV20") || 
-                        cameras[i].description.includes("USB Composite") ||
-                        cameras[i].id.includes("video0") ||
-                        cameras[i].id.includes("video1")) {
-                        cam.cameraDevice = cameras[i]
-                        break
-                    }
+                // Get current frame from grabber
+                var capturedImage = backend.captureFromGrabber()
+                if (capturedImage && !capturedImage.isNull) {
+                    // Convert to base64 and crop for avatar
+                    var croppedImage = backend.cropImageToFaceFrame(capturedImage, capturedImage.width, capturedImage.height)
+                    loginPage.lastCapturedImage = croppedImage
+                    
+                    // Start timeout timer
+                    processingTimeoutTimer.start()
+                    
+                    // Send to server for recognition
+                    backend.captureAndRecognizeFromQML(capturedImage, loginPage.lastCapturedImage)
+                } else {
+                    loginPage.isProcessingFace = false
                 }
             }
         }
-        
-        // Camera preview is already defined above
-
-        // Image capture is already defined above
-        Connections {
-            target: imageCapture
-            function onImageCaptured(id, preview) {
-                // Crop image to face frame and convert to base64 for avatar
-                var croppedImage = backend.cropImageToFaceFrame(preview, preview.width, preview.height)
-                loginPage.lastCapturedImage = croppedImage
-                
-                // Start timeout timer to prevent stuck processing
-                processingTimeoutTimer.start()
-                
-                // Send to server for face detection and recognition
-                // Server will first detect face, then recognize if face is found
-                backend.captureAndRecognizeFromQML(preview, loginPage.lastCapturedImage)
-            }
-            function onErrorOccurred(id, error, errorString) {
-                console.log("Image capture error:", errorString)
-            }
-        }
-        
-        // Remove duplicate CaptureSession since we already have one above
 
         Image {
             anchors.centerIn: parent
@@ -275,9 +145,9 @@ Window {
             hoverEnabled: true
             
             onClicked: {
-                if (cam.active && imageCapture.readyForCapture && !loginPage.isProcessingFace) {
+                if (cameraRunning && !loginPage.isProcessingFace) {
                     console.log("Smart capture triggered by user tap")
-                    imageCapture.capture()
+                    cameraFrame.captureForRecognition()
                 }
             }
             
@@ -289,7 +159,7 @@ Window {
 
         Label {
             text: {
-                if (!cam.active) {
+                if (!cameraRunning) {
                     return "Đang mở camera..."
                 } else if (loginPage.isProcessingFace) {
                     return "Đang nhận diện khuôn mặt..."
@@ -437,30 +307,34 @@ Window {
         }
     }
 
-        // ====== keyboard shortcuts ======
-        Keys.onReleased: function(ev) {
-            if (ev.key === Qt.Key_R) {
-                console.log("Keyboard capture triggered (R key)")
-                if (cam.active && imageCapture.readyForCapture && !loginPage.isProcessingFace) {
-                    imageCapture.capture()
-                }
-            } else if (ev.key === Qt.Key_Space) {
-                console.log("Keyboard capture triggered (Space key)")
-                if (cam.active && imageCapture.readyForCapture && !loginPage.isProcessingFace) {
-                    imageCapture.capture()
-                }
+    // ====== keyboard shortcuts ======
+    Keys.onReleased: function(ev) {
+        if (ev.key === Qt.Key_R) {
+            console.log("Keyboard capture triggered (R key)")
+            if (cameraRunning && !loginPage.isProcessingFace) {
+                cameraFrame.captureForRecognition()
+            }
+        } else if (ev.key === Qt.Key_Space) {
+            console.log("Keyboard capture triggered (Space key)")
+            if (cameraRunning && !loginPage.isProcessingFace) {
+                cameraFrame.captureForRecognition()
             }
         }
     }
+    
+    // Enable focus for keyboard handling
+    focus: true
 
     // Handle page visibility changes
     onVisibleChanged: {
         if (visible) {
-            // Page became visible - activate camera
-            cam.active = true
+            // Page became visible - activate camera grabber
+            backend.startCameraGrabber(30)
+            cameraRunning = true
         } else {
-            // Page became hidden - deactivate camera
-            cam.active = false
+            // Page became hidden - deactivate camera grabber
+            backend.stopCameraGrabber()
+            cameraRunning = false
         }
     }
     
@@ -470,7 +344,8 @@ Window {
         backend.clearRecognitionHistory()
         
         if (visible) {
-            cam.active = true
+            backend.startCameraGrabber(30)
+            cameraRunning = true
         }
     }
 }

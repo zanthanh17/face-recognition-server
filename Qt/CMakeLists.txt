@@ -14,8 +14,8 @@ find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Quick)
 set(QT_VERSION_MAJOR 6)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Quick Sql Network Multimedia)
 
-# Find OpenCV for face recognition (optional)
-find_package(OpenCV QUIET)
+# Find OpenCV for face recognition (required now)
+find_package(OpenCV REQUIRED)
 
 # Find GStreamer for Raspberry Pi camera support
 find_package(PkgConfig QUIET)
@@ -57,6 +57,9 @@ set(PROJECT_SOURCES
         qml.qrc
         src/services/cameramanager.cpp
         src/services/cameramanager.h
+        src/services/cameragrabber.cpp
+        src/services/cameragrabber.h
+        src/services/frameprovider.h
         src/services/systemmonitor.cpp
         src/services/systemmonitor.h
         src/services/networkmanager.cpp

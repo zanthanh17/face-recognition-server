@@ -4,6 +4,8 @@
 #include "../services/networkmanager.h"
 #include "../services/facerecognitionservice.h"
 #include "../services/cachemanager.h"
+#include "../services/cameragrabber.h"
+#include "../services/frameprovider.h"
 #include <QDateTime>
 #include <QDebug>
 #include <QBuffer>
@@ -19,6 +21,8 @@ QmlBridge::QmlBridge(QObject *parent)
     , m_systemMonitor(nullptr)
     , m_networkManager(nullptr)
     , m_faceRecognitionService(nullptr)
+    , m_cameraGrabber(nullptr)
+    , m_frameProvider(nullptr)
     , m_wifiConnected(false)
     , m_cameraAvailable(false)
 {
@@ -28,6 +32,10 @@ QmlBridge::QmlBridge(QObject *parent)
     m_networkManager = new NetworkManager(this);
     m_faceRecognitionService = new FaceRecognitionService(this);
     m_cacheManager = new CacheManager(this);
+    
+    // Initialize frame provider and camera grabber
+    m_frameProvider = new FrameProvider();
+    m_cameraGrabber = new CameraGrabber(m_frameProvider, this);
     
     // Start system monitoring
     // startSystemMonitoring(); // Disabled to reduce log noise
@@ -73,6 +81,12 @@ QmlBridge::QmlBridge(QObject *parent)
     connect(m_cacheManager, &CacheManager::unsyncedLogsChanged,
             this, &QmlBridge::unsyncedLogsChanged);
             
+    // Connect camera grabber signals
+    connect(m_cameraGrabber, &CameraGrabber::frameReady,
+            this, &QmlBridge::frameReady);
+    connect(m_cameraGrabber, &CameraGrabber::cameraError,
+            this, &QmlBridge::cameraError);
+            
     qDebug() << "QmlBridge initialized - with cache support";
 }
 
@@ -80,6 +94,11 @@ QmlBridge::~QmlBridge()
 {
     stopSystemMonitoring();
     stopCamera();
+    stopCameraGrabber();
+    if (m_frameProvider) {
+        delete m_frameProvider;
+        m_frameProvider = nullptr;
+    }
 }
 
 
@@ -206,6 +225,36 @@ void QmlBridge::stopCamera()
 QByteArray QmlBridge::captureImage()
 {
     return m_cameraManager->captureImage();
+}
+
+void QmlBridge::startCameraGrabber(int fps)
+{
+    if (m_cameraGrabber) {
+        m_cameraGrabber->start(fps);
+    }
+}
+
+void QmlBridge::stopCameraGrabber()
+{
+    if (m_cameraGrabber) {
+        m_cameraGrabber->stop();
+    }
+}
+
+bool QmlBridge::isCameraGrabberRunning()
+{
+    if (m_cameraGrabber) {
+        return m_cameraGrabber->isRunning();
+    }
+    return false;
+}
+
+QImage QmlBridge::captureFromGrabber()
+{
+    if (m_cameraGrabber) {
+        return m_cameraGrabber->captureCurrentFrame();
+    }
+    return QImage();
 }
 
 bool QmlBridge::getCameraAvailable()

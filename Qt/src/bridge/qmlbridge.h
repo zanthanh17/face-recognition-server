@@ -16,6 +16,8 @@ class SystemMonitor;
 class NetworkManager;
 class FaceRecognitionService;
 class CacheManager;
+class CameraGrabber;
+class FrameProvider;
 
 class QmlBridge : public QObject
 {
@@ -32,6 +34,9 @@ class QmlBridge : public QObject
 public:
     explicit QmlBridge(QObject *parent = nullptr);
     ~QmlBridge();
+    
+    // Get frame provider for QML engine
+    FrameProvider* getFrameProvider() const { return m_frameProvider; }
 
     // Server database operations
     Q_INVOKABLE QVariantList getUsers();
@@ -51,6 +56,10 @@ public:
     Q_INVOKABLE bool startCamera();
     Q_INVOKABLE void stopCamera();
     Q_INVOKABLE QByteArray captureImage();
+    Q_INVOKABLE void startCameraGrabber(int fps = 30);
+    Q_INVOKABLE void stopCameraGrabber();
+    Q_INVOKABLE bool isCameraGrabberRunning();
+    Q_INVOKABLE QImage captureFromGrabber();
     Q_INVOKABLE bool getCameraAvailable();
     Q_INVOKABLE QVariantMap getSelectedCameraInfo();
     Q_INVOKABLE QVariant getSelectedCameraDevice();
@@ -119,6 +128,7 @@ signals:
     void wifiConnectedChanged();
     void systemMetricsChanged();
     void cameraAvailableChanged();
+    void frameReady();
     void faceRecognized(const QString &userId, const QString &userName);
     void faceRecognitionFailed();
     void faceRegistrationSuccess(int userId);
@@ -144,6 +154,8 @@ private:
     NetworkManager *m_networkManager;
     FaceRecognitionService *m_faceRecognitionService;
     CacheManager *m_cacheManager;
+    CameraGrabber *m_cameraGrabber;
+    FrameProvider *m_frameProvider;
 
     QVariantList m_users;
     QVariantList m_historyLogs;

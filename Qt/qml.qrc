@@ -33,7 +33,6 @@
         <file>ui/pages/SettingAdmin.qml</file>
         <file>ui/pages_component/EditUser.qml</file>
         <file>ui/pages_component/UserInfor.qml</file>
-        <file>ui/pages_component/CaptureFace.qml</file>
         <file>ui/pages/Home.qml</file>
         <file>assets/images/background.jpg</file>
         <file>assets/icons/btn_back.png</file>

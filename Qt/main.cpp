@@ -6,6 +6,7 @@
 #include <QStandardPaths>
 #include "src/bridge/qmlbridge.h"
 #include "src/qt_logging_config.h"
+#include "src/services/frameprovider.h"
 
 int main(int argc, char *argv[])
 {
@@ -67,6 +68,11 @@ int main(int argc, char *argv[])
     
     // Create and initialize QML Bridge
     QmlBridge qmlBridge;
+    
+    // Register frame provider with QML engine
+    if (qmlBridge.getFrameProvider()) {
+        engine.addImageProvider("frames", qmlBridge.getFrameProvider());
+    }
     
     // Expose QML Bridge to QML
     engine.rootContext()->setContextProperty("backend", &qmlBridge);
