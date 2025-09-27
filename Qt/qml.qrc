@@ -2,12 +2,19 @@
     <qresource prefix="/">
         <file>main.qml</file>
         <file>ui/pages/Login.qml</file>
-        <file>ui/pages/Setting.qml</file>
+        <file>ui/pages/NumericKeypad.qml</file>
         <file>ui/pages/NetworkSettings.qml</file>
         <file>ui/pages/History.qml</file>
         <file>ui/pages/SystemMonitor.qml</file>
         <file>ui/dialogs/DialogSuccess.qml</file>
         <file>ui/dialogs/DialogFailed.qml</file>
+        <file>assets/icons/face.png</file>
+        <file>assets/icons/numeric.png</file>
+        <file>assets/icons/system.png</file>
+        <file>assets/icons/user_list.png</file>
+        <file>assets/icons/enter.png</file>
+        <file>assets/icons/remove.png</file>
+        <file>assets/icons/back.png</file>
         <file>assets/icons/logo.jpg</file>
         <file>assets/icons/auth.png</file>
         <file>assets/icons/wifi.png</file>
@@ -34,7 +41,6 @@
         <file>ui/pages_component/EditUser.qml</file>
         <file>ui/pages_component/UserInfor.qml</file>
         <file>ui/pages/Home.qml</file>
-        <file>assets/images/background.jpg</file>
-        <file>assets/icons/btn_back.png</file>
+        <file>assets/images/background.png</file>
     </qresource>
 </RCC>

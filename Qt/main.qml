@@ -68,13 +68,18 @@ Window {
                 target: homeLoader.item
                 ignoreUnknownSignals: true
                 function onOpenSettingsRequested() {
+                    console.log("Home: Opening settings admin - deactivating camera")
                     if (homeLoader.item && homeLoader.item.deactivateCamera)
                         homeLoader.item.deactivateCamera()
-                    stack.push(settingsComponent)
+                    stack.push(settingAdminComponent)
                 }
                 function onStartFaceRecognition() {
                     console.log("Starting face recognition - switching to Login page")
                     stack.push(loginComponent)
+                }
+                function onOpenNumericKeypad() {
+                    console.log("Opening numeric keypad")
+                    stack.push(numericKeypadComponent)
                 }
             }
         }
@@ -93,10 +98,10 @@ Window {
                 target: loginLoader.item
                 ignoreUnknownSignals: true
                 function onOpenSettingsRequested() {
-                    console.log("Login: Opening settings - deactivating camera")
+                    console.log("Login: Opening settings admin - deactivating camera")
                     if (loginLoader.item && loginLoader.item.deactivateCamera)
                         loginLoader.item.deactivateCamera()
-                    stack.push(settingsComponent)
+                    stack.push(settingAdminComponent)
                 }
                 function onBackToHomeRequested() {
                     console.log("Login: Going back to Home - deactivating camera")
@@ -116,27 +121,21 @@ Window {
         }
     }
 
-    // ---------- Setting (nhập pass) ----------
+    // ---------- NumericKeypad ----------
     Component {
-        id: settingsComponent
+        id: numericKeypadComponent
         Item {
             Loader {
-                id: settingsLoader
+                id: numericKeypadLoader
                 anchors.fill: parent
-                source: "qrc:/ui/pages/Setting.qml"
-                onLoaded: {
-                    if (item) item.wifiConnected = Qt.binding(() => root.globalWifiConnected)
-                }
+                source: "qrc:/ui/pages/NumericKeypad.qml"
             }
             Connections {
-                target: settingsLoader.item
+                target: numericKeypadLoader.item
                 ignoreUnknownSignals: true
-                function onBackRequested() { stack.pop() }
-                function onPasswordAuthenticated() { stack.push(settingAdminComponent) }
-                function onLogoClicked() { 
-                    console.log("Logo clicked - going back to Home")
-                    stack.clear()
-                    stack.push(homeComponent)
+                function onBackToHomeRequested() {
+                    console.log("NumericKeypad: Going back to Home")
+                    stack.pop()
                 }
             }
         }
