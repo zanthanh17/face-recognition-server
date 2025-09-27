@@ -24,10 +24,18 @@ Item {
     // Property to track if face was detected in last check
     property bool lastCaptureHadFace: false
     
+    // Property to track face detection status
+    property bool faceDetected: false
+    property bool autoCapturePending: false
+    
     // Expose function to deactivate camera from outside if needed
     function deactivateCamera() { 
+        backend.stopFaceDetection()
         backend.stopCameraGrabber()
         cameraRunning = false
+        faceDetected = false
+        autoCapturePending = false
+        autoCaptureTimer.stop()
     }
     
     // Function to show camera error messages
@@ -41,6 +49,7 @@ Item {
     function activateCamera() { 
         backend.startCameraGrabber(30)
         cameraRunning = true
+        backend.startFaceDetection()
     }
     
     // Background color
@@ -128,33 +137,28 @@ Item {
             }
         }
 
+        // Face frame overlay - visual indicator
         Image {
+            id: faceFrameOverlay
             anchors.centerIn: parent
             width: parent.width * 0.78
             height: parent.height * 0.78
             fillMode: Image.PreserveAspectFit
             source: "qrc:/assets/icons/face-frame.png"
-            opacity: 0.95
+            opacity: faceDetected ? 0.8 : 0.95
             z: 2
-        }
-        
-        // Smart touch area - only capture when user intentionally interacts
-        MouseArea {
-            anchors.fill: parent
-            z: 1
-            hoverEnabled: true
             
-            onClicked: {
-                if (cameraRunning && !loginPage.isProcessingFace) {
-                    console.log("Smart capture triggered by user tap")
-                    cameraFrame.captureForRecognition()
+            // Visual feedback when face is detected - using Rectangle overlay instead
+            Rectangle {
+                anchors.fill: parent
+                color: faceDetected ? "#4CAF50" : "transparent"
+                opacity: faceDetected ? 0.2 : 0
+                radius: 10
+                
+                Behavior on opacity {
+                    NumberAnimation { duration: 300 }
                 }
             }
-            
-            // Optional: Capture when user moves mouse into frame area (uncomment if needed)
-            // onEntered: {
-            //     console.log("User entered frame area")
-            // }
         }
 
         Label {
@@ -163,16 +167,22 @@ Item {
                     return "Đang mở camera..."
                 } else if (loginPage.isProcessingFace) {
                     return "Đang nhận diện khuôn mặt..."
+                } else if (faceDetected) {
+                    return "Khuôn mặt đã được phát hiện - Đang chụp ảnh..."
                 } else {
-                    return "Chạm vào màn hình để chụp ảnh"
+                    return "Đưa khuôn mặt vào khung để nhận diện"
                 }
             }
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 60
             font.bold: true
-            color: "#222"
+            color: faceDetected ? "#4CAF50" : "#222"
             z: 3
+            
+            Behavior on color {
+                ColorAnimation { duration: 300 }
+            }
         }
         
         // Error message
@@ -211,15 +221,20 @@ Item {
             }
         }
         
-        // Frame area detection - DISABLED: Only capture on user interaction
+        // No more timer - using event-driven approach
+        
+        // Auto capture timer - captures after face is detected and stable
         Timer {
-            id: frameDetectionTimer
-            interval: 3000
-            repeat: true
-            running: false // DISABLED - No automatic timer capture
+            id: autoCaptureTimer
+            interval: 1000 // Wait 1 second after face detection
+            repeat: false
             
             onTriggered: {
-                // Timer disabled - no automatic capture
+                if (faceDetected && autoCapturePending && !loginPage.isProcessingFace) {
+                    console.log("Auto-capturing face after detection")
+                    autoCapturePending = false
+                    cameraFrame.captureForRecognition()
+                }
             }
         }
         
@@ -231,8 +246,13 @@ Item {
             
             onTriggered: {
                 if (loginPage.isProcessingFace) {
-                    console.log("Processing timeout - resetting flag")
+                    console.log("Processing timeout - resetting flags")
                     loginPage.isProcessingFace = false
+                    
+                    // Also reset face detection status
+                    faceDetected = false
+                    autoCapturePending = false
+                    autoCaptureTimer.stop()
                 }
             }
         }
@@ -241,12 +261,39 @@ Item {
     // ====== backend connections ======
     Connections {
         target: backend
+        
+        // Handle face detection events
+        function onFaceDetectionChanged(detected) {
+            console.log("Face detection changed:", detected)
+            
+            if (detected && !faceDetected && !loginPage.isProcessingFace) {
+                // Face just detected
+                console.log("Face detected - preparing to capture")
+                faceDetected = true
+                autoCapturePending = true
+                
+                // Wait a moment for user to position properly, then capture
+                autoCaptureTimer.start()
+            } else if (!detected && faceDetected) {
+                // Face lost
+                console.log("Face lost")
+                faceDetected = false
+                autoCapturePending = false
+                autoCaptureTimer.stop()
+            }
+        }
+        
         function onFaceRecognized(userId, userName) {
             console.log("FACE RECOGNITION SUCCESS:", userName)
             
             // Reset processing flag
             loginPage.isProcessingFace = false
             processingTimeoutTimer.stop()
+            
+            // Reset face detection status
+            faceDetected = false
+            autoCapturePending = false
+            autoCaptureTimer.stop()
             
             // Reset consecutive failures counter
             loginPage.consecutiveFailures = 0
@@ -280,6 +327,11 @@ Item {
             // Reset processing flag
             loginPage.isProcessingFace = false
             processingTimeoutTimer.stop()
+            
+            // Reset face detection status
+            faceDetected = false
+            autoCapturePending = false
+            autoCaptureTimer.stop()
             
             // Increment consecutive failures counter
             loginPage.consecutiveFailures++
@@ -328,13 +380,18 @@ Item {
     // Handle page visibility changes
     onVisibleChanged: {
         if (visible) {
-            // Page became visible - activate camera grabber
+            // Page became visible - activate camera grabber and face detection
             backend.startCameraGrabber(30)
             cameraRunning = true
+            backend.startFaceDetection()
         } else {
-            // Page became hidden - deactivate camera grabber
+            // Page became hidden - deactivate camera grabber and face detection
+            backend.stopFaceDetection()
             backend.stopCameraGrabber()
             cameraRunning = false
+            faceDetected = false
+            autoCapturePending = false
+            autoCaptureTimer.stop()
         }
     }
     
@@ -346,6 +403,7 @@ Item {
         if (visible) {
             backend.startCameraGrabber(30)
             cameraRunning = true
+            backend.startFaceDetection()
         }
     }
 }

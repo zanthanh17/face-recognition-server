@@ -2,9 +2,10 @@
 #define QMLBRIDGE_H
 
 #include <QObject>
-#include <QVariant>
-#include <QVariantList>
 #include <QVariantMap>
+#include <QVariantList>
+#include <QTimer>
+#include <opencv2/opencv.hpp>
 #include <QString>
 #include <QByteArray>
 #include <QImage>
@@ -60,6 +61,9 @@ public:
     Q_INVOKABLE void stopCameraGrabber();
     Q_INVOKABLE bool isCameraGrabberRunning();
     Q_INVOKABLE QImage captureFromGrabber();
+    Q_INVOKABLE bool detectFaceInCurrentFrame();
+    Q_INVOKABLE void startFaceDetection();
+    Q_INVOKABLE void stopFaceDetection();
     Q_INVOKABLE bool getCameraAvailable();
     Q_INVOKABLE QVariantMap getSelectedCameraInfo();
     Q_INVOKABLE QVariant getSelectedCameraDevice();
@@ -151,6 +155,7 @@ signals:
     void workHoursSummaryUpdated(const QVariantList &summary);
     void cacheUpdated();
     void unsyncedLogsChanged();
+    void faceDetectionChanged(bool detected);
 
 private:
     UserManager *m_userManager;
@@ -168,6 +173,11 @@ private:
     QVariantMap m_systemMetrics;
     bool m_wifiConnected;
     bool m_cameraAvailable;
+    
+    // Face detection
+    QTimer *m_faceDetectionTimer;
+    bool m_lastFaceDetectionState;
+    cv::CascadeClassifier m_faceCascade;
 
     void loadUsers();
     void loadHistoryLogs();
@@ -175,6 +185,7 @@ private:
     void updateSystemMetrics(const QVariantMap &metrics);
     void processRecognition(const QByteArray &imageData, const QString &capturedImage = QString());
     void onUsersUpdated(const QVariantList &users);
+    bool detectFaceSimple(const QImage &image);
 };
 
 #endif // QMLBRIDGE_H

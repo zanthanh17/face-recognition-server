@@ -25,6 +25,8 @@ QmlBridge::QmlBridge(QObject *parent)
     , m_frameProvider(nullptr)
     , m_wifiConnected(false)
     , m_cameraAvailable(false)
+    , m_faceDetectionTimer(nullptr)
+    , m_lastFaceDetectionState(false)
 {
     // Initialize services (no local database needed)
     m_cameraManager = new CameraManager(this);
@@ -36,6 +38,45 @@ QmlBridge::QmlBridge(QObject *parent)
     // Initialize frame provider and camera grabber
     m_frameProvider = new FrameProvider();
     m_cameraGrabber = new CameraGrabber(m_frameProvider, this);
+    
+    // Initialize face detection timer
+    m_faceDetectionTimer = new QTimer(this);
+    m_faceDetectionTimer->setInterval(300); // Check every 300ms
+    connect(m_faceDetectionTimer, &QTimer::timeout, this, [this]() {
+        bool currentState = detectFaceInCurrentFrame();
+        if (currentState != m_lastFaceDetectionState) {
+            m_lastFaceDetectionState = currentState;
+            emit faceDetectionChanged(currentState);
+        }
+    });
+    
+    // Load OpenCV face cascade classifier
+    QStringList cascadePaths = {
+        "/usr/share/opencv4/haarcascades/haarcascade_frontalface_alt.xml",
+        "/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml",
+        "/usr/local/share/opencv4/haarcascades/haarcascade_frontalface_alt.xml",
+        "/usr/local/share/opencv4/haarcascades/haarcascade_frontalface_default.xml",
+        "/opt/opencv/share/opencv4/haarcascades/haarcascade_frontalface_alt.xml",
+        "/usr/share/opencv/haarcascades/haarcascade_frontalface_alt.xml",
+        "/usr/share/opencv/haarcascades/haarcascade_frontalface_default.xml"
+    };
+    
+    bool cascadeLoaded = false;
+    for (const QString& path : cascadePaths) {
+        if (QFile::exists(path)) {
+            if (m_faceCascade.load(path.toStdString())) {
+                qDebug() << "Successfully loaded face cascade from:" << path;
+                cascadeLoaded = true;
+                break;
+            }
+        }
+    }
+    
+    if (!cascadeLoaded) {
+        qWarning() << "Failed to load any OpenCV face cascade files";
+        qWarning() << "Face detection will use fallback method only";
+        qDebug() << "Searched paths:" << cascadePaths;
+    }
     
     // Start system monitoring
     // startSystemMonitoring(); // Disabled to reduce log noise
@@ -255,6 +296,231 @@ QImage QmlBridge::captureFromGrabber()
         return m_cameraGrabber->captureCurrentFrame();
     }
     return QImage();
+}
+
+bool QmlBridge::detectFaceInCurrentFrame()
+{
+    if (!m_cameraGrabber) {
+        return false;
+    }
+    
+    // Get current frame from camera grabber
+    QImage currentFrame = m_cameraGrabber->captureCurrentFrame();
+    if (currentFrame.isNull()) {
+        return false;
+    }
+    
+    bool faceDetected = false;
+    
+    // Try OpenCV face detection first if cascade is loaded
+    if (!m_faceCascade.empty()) {
+        try {
+            // Convert QImage to OpenCV Mat
+            cv::Mat cvFrame;
+            
+            // Handle different QImage formats
+            if (currentFrame.format() == QImage::Format_RGB888) {
+                cvFrame = cv::Mat(currentFrame.height(), currentFrame.width(), CV_8UC3, 
+                                (void*)currentFrame.constBits(), currentFrame.bytesPerLine());
+                cv::cvtColor(cvFrame, cvFrame, cv::COLOR_RGB2BGR);
+            } else {
+                // Convert to RGB888 first
+                QImage rgbImage = currentFrame.convertToFormat(QImage::Format_RGB888);
+                cvFrame = cv::Mat(rgbImage.height(), rgbImage.width(), CV_8UC3, 
+                                (void*)rgbImage.constBits(), rgbImage.bytesPerLine());
+                cv::cvtColor(cvFrame, cvFrame, cv::COLOR_RGB2BGR);
+            }
+            
+            // Convert to grayscale for face detection
+            cv::Mat grayFrame;
+            cv::cvtColor(cvFrame, grayFrame, cv::COLOR_BGR2GRAY);
+            
+            // Define face frame area (center 78% like the UI overlay)
+            int frameWidth = grayFrame.cols * 0.78;
+            int frameHeight = grayFrame.rows * 0.78;
+            int frameX = (grayFrame.cols - frameWidth) / 2;
+            int frameY = (grayFrame.rows - frameHeight) / 2;
+            
+            // Extract the face frame region
+            cv::Rect faceRegion(frameX, frameY, frameWidth, frameHeight);
+            cv::Mat roiFrame = grayFrame(faceRegion);
+            
+            // Detect faces using OpenCV
+            std::vector<cv::Rect> faces;
+            m_faceCascade.detectMultiScale(
+                roiFrame,
+                faces,
+                1.1,        // Scale factor
+                3,          // Min neighbors
+                0,          // Flags
+                cv::Size(30, 30),  // Min size
+                cv::Size(300, 300) // Max size
+            );
+            
+            // Face detected if we found at least one face
+            faceDetected = !faces.empty();
+            
+            if (faceDetected) {
+                qDebug() << "OpenCV detected" << faces.size() << "face(s) in frame";
+            }
+            
+        } catch (const cv::Exception& e) {
+            qWarning() << "OpenCV face detection error:" << e.what();
+            // Fall back to simple method
+            faceDetected = detectFaceSimple(currentFrame);
+        }
+    } else {
+        // Use fallback simple detection method
+        faceDetected = detectFaceSimple(currentFrame);
+    }
+    
+    // Temporal smoothing to avoid false positives
+    static int consecutiveDetections = 0;
+    static int consecutiveNonDetections = 0;
+    static bool lastState = false;
+    
+    if (faceDetected) {
+        consecutiveDetections++;
+        consecutiveNonDetections = 0;
+        // Require 2 consecutive detections to confirm face
+        if (consecutiveDetections >= 2) {
+            lastState = true;
+        }
+    } else {
+        consecutiveNonDetections++;
+        consecutiveDetections = 0;
+        // Require 3 consecutive non-detections to lose face
+        if (consecutiveNonDetections >= 3) {
+            lastState = false;
+        }
+    }
+    
+    return lastState;
+}
+
+bool QmlBridge::detectFaceSimple(const QImage &image)
+{
+    // Enhanced fallback face detection method
+    QImage grayImage = image.convertToFormat(QImage::Format_Grayscale8);
+    
+    // Define face frame area (center 78% like the UI overlay)
+    int frameWidth = grayImage.width() * 0.78;
+    int frameHeight = grayImage.height() * 0.78;
+    int frameX = (grayImage.width() - frameWidth) / 2;
+    int frameY = (grayImage.height() - frameHeight) / 2;
+    
+    // Extract the face frame region
+    QRect faceRect(frameX, frameY, frameWidth, frameHeight);
+    QImage faceRegion = grayImage.copy(faceRect);
+    
+    if (faceRegion.isNull()) {
+        return false;
+    }
+    
+    // Multiple detection criteria for better accuracy
+    
+    // 1. Variance check (texture detection)
+    QVector<int> pixelValues;
+    for (int y = 0; y < faceRegion.height(); y += 6) {
+        for (int x = 0; x < faceRegion.width(); x += 6) {
+            pixelValues.append(qGray(faceRegion.pixel(x, y)));
+        }
+    }
+    
+    if (pixelValues.size() < 30) {
+        return false;
+    }
+    
+    double mean = 0;
+    for (int val : pixelValues) {
+        mean += val;
+    }
+    mean /= pixelValues.size();
+    
+    double variance = 0;
+    for (int val : pixelValues) {
+        variance += (val - mean) * (val - mean);
+    }
+    variance /= pixelValues.size();
+    
+    // 2. Contrast check
+    int minVal = 255, maxVal = 0;
+    for (int val : pixelValues) {
+        minVal = qMin(minVal, val);
+        maxVal = qMax(maxVal, val);
+    }
+    int contrast = maxVal - minVal;
+    
+    // 3. Edge detection (simple Sobel-like)
+    int edgeCount = 0;
+    int totalPixels = 0;
+    for (int y = 1; y < faceRegion.height() - 1; y += 8) {
+        for (int x = 1; x < faceRegion.width() - 1; x += 8) {
+            int gx = qGray(faceRegion.pixel(x+1, y)) - qGray(faceRegion.pixel(x-1, y));
+            int gy = qGray(faceRegion.pixel(x, y+1)) - qGray(faceRegion.pixel(x, y-1));
+            int gradient = qAbs(gx) + qAbs(gy);
+            if (gradient > 30) {
+                edgeCount++;
+            }
+            totalPixels++;
+        }
+    }
+    double edgeRatio = totalPixels > 0 ? (double)edgeCount / totalPixels : 0;
+    
+    // 4. Brightness distribution check (avoid too dark or too bright)
+    bool goodBrightness = mean > 30 && mean < 220;
+    
+    // 5. Size check (make sure region is not too small)
+    bool goodSize = faceRegion.width() > 50 && faceRegion.height() > 50;
+    
+    // Combine all criteria
+    bool hasTexture = variance > 300;
+    bool hasContrast = contrast > 50;
+    bool hasEdges = edgeRatio > 0.1;
+    
+    // Face detected if multiple criteria are met
+    int criteriaCount = 0;
+    if (hasTexture) criteriaCount++;
+    if (hasContrast) criteriaCount++;
+    if (hasEdges) criteriaCount++;
+    if (goodBrightness) criteriaCount++;
+    if (goodSize) criteriaCount++;
+    
+    bool detected = criteriaCount >= 3;
+    
+    qDebug() << "Simple face detection:"
+             << "Variance:" << variance << "(>" << 300 << "=" << hasTexture << ")"
+             << "Contrast:" << contrast << "(>" << 50 << "=" << hasContrast << ")"
+             << "EdgeRatio:" << edgeRatio << "(>" << 0.1 << "=" << hasEdges << ")"
+             << "Brightness:" << mean << "(30-220=" << goodBrightness << ")"
+             << "Size:" << faceRegion.size() << "(good=" << goodSize << ")"
+             << "Criteria:" << criteriaCount << "/5"
+             << "Detected:" << detected;
+    
+    return detected;
+}
+
+void QmlBridge::startFaceDetection()
+{
+    if (m_faceDetectionTimer && m_cameraGrabber && isCameraGrabberRunning()) {
+        qDebug() << "Starting face detection monitoring";
+        m_lastFaceDetectionState = false;
+        m_faceDetectionTimer->start();
+    } else {
+        qDebug() << "Cannot start face detection - camera not available";
+    }
+}
+
+void QmlBridge::stopFaceDetection()
+{
+    if (m_faceDetectionTimer) {
+        qDebug() << "Stopping face detection monitoring";
+        m_faceDetectionTimer->stop();
+        if (m_lastFaceDetectionState) {
+            m_lastFaceDetectionState = false;
+            emit faceDetectionChanged(false);
+        }
+    }
 }
 
 bool QmlBridge::getCameraAvailable()
