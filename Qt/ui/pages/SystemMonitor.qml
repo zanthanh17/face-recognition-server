@@ -15,49 +15,39 @@ Item {
     property real cpuTemp: 0
     property real ramUsage: 0
     property real storageUsage: 0
-    property real networkUsage: 0
     property string systemInfo: ""
     property string uptime: ""
     property string loadAverage: ""
     
-    // Network speed history for chart (15 data points)
-    property var networkHistory: []
-
-    HeaderBar {
-        id: header
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        wifiConnected: monitorPage.wifiConnected
+    // ===== Background =====
+    Image {
+        anchors.fill: parent
+        source: "qrc:/assets/images/background.png"
+        fillMode: Image.PreserveAspectCrop
+        z: 0
     }
 
-    RowLayout {
-        id: titleRow
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: header.bottom
-        anchors.margins: 12
-        spacing: 8
-        height: 48
+    // ===== Header =====
+    Rectangle {
+        id: headerSection
+        width: parent.width; height: 80
+        color: "transparent"; z: 1
 
-        Image {
-            Layout.preferredWidth: 40
-            Layout.preferredHeight: 40
-            source: "qrc:/assets/icons/btn_back.png"
-            fillMode: Image.PreserveAspectFit
-            
-            MouseArea {
-                anchors.fill: parent
-                onClicked: monitorPage.backRequested()
-            }
+        // Back
+        Rectangle {
+            width: 60; height: 60; color: "transparent"
+            anchors.left: parent.left; anchors.leftMargin: 20
+            anchors.verticalCenter: parent.verticalCenter
+            Image { anchors.centerIn: parent; source: "qrc:/assets/icons/back.png"; width: 40; height: 40; fillMode: Image.PreserveAspectFit }
+            MouseArea { anchors.fill: parent; onClicked: monitorPage.backRequested() }
         }
 
-        Label {
-            text: "System monitor"
-            font.pixelSize: 20
-            font.bold: true
-            color: "#333"
-            Layout.alignment: Qt.AlignVCenter
+        // Title
+        Text {
+            anchors.centerIn: parent
+            text: "SYSTEM MONITOR"
+            color: "#2C3E50"
+            font.pixelSize: 28; font.bold: true
         }
     }
 
@@ -79,16 +69,9 @@ Item {
                 
                 ramUsage = Number(metrics.memory) || 0
                 storageUsage = Number(metrics.storage) || 0
-                networkUsage = Number(metrics.network) || 0
                 systemInfo = metrics.systemInfo || ""
                 uptime = metrics.uptime || ""
                 loadAverage = metrics.loadAverage || ""
-                
-                // Update network history
-                if (networkHistory.length >= 15) {
-                    networkHistory.shift()
-                }
-                networkHistory.push(networkUsage)
                 
                 console.log("System metrics updated successfully")
             }
@@ -122,559 +105,429 @@ Item {
     }
 
     ColumnLayout {
-        anchors.top: titleRow.bottom
+        anchors.top: headerSection.bottom
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.margins: 16
-        spacing: 16
+        anchors.margins: 20
+        anchors.topMargin: 30
+        spacing: 25
+        z: 1
 
-            // Top row: CPU Usage and CPU Temperature
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 12
+        // Top row: CPU Usage and CPU Temperature
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 20
 
-                // CPU Usage Card
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 120
-                    radius: 16
-                    color: "#FFFFFF"
-                    border.color: "#E0E0E0"
-                    border.width: 1
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 16
-                        spacing: 8
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            
-                            Rectangle {
-                                width: 24
-                                height: 24
-                                radius: 4
-                                color: "#FF6B35"
-                                
-                                Label {
-                                    anchors.centerIn: parent
-                                    text: "⚡"
-                                    color: "white"
-                                    font.pixelSize: 12
-                                }
-                            }
-                            
-                            Label {
-                                text: "CPU"
-                                font.pixelSize: 16
-                                font.bold: true
-                                color: "#333"
-                                Layout.fillWidth: true
-                            }
-                        }
-
-                        Item {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            
-                            // CPU Circular Progress
-                            Rectangle {
-                                id: cpuGaugeBackground
-                                anchors.centerIn: parent
-                                width: 70
-                                height: 70
-                                radius: 35
-                                color: "transparent"
-                                border.width: 6
-                                border.color: "#F5F5F5"
-                            }
-                            
-                            Canvas {
-                                id: cpuGaugeCanvas
-                                anchors.centerIn: parent
-                                width: 70
-                                height: 70
-                                
-                                onPaint: {
-                                    var ctx = getContext("2d")
-                                    ctx.clearRect(0, 0, width, height)
-                                    
-                                    var centerX = width / 2
-                                    var centerY = height / 2
-                                    var radius = 29
-                                    var startAngle = -Math.PI / 2
-                                    var endAngle = startAngle + (cpuUsage / 100) * 2 * Math.PI
-                                    
-                                    // Draw progress arc
-                                    ctx.beginPath()
-                                    ctx.arc(centerX, centerY, radius, startAngle, endAngle)
-                                    ctx.lineWidth = 6
-                                    ctx.strokeStyle = "#FF4444"
-                                    ctx.lineCap = "round"
-                                    ctx.stroke()
-                                }
-                                
-                                Connections {
-                                    target: monitorPage
-                                    function onCpuUsageChanged() { cpuGaugeCanvas.requestPaint() }
-                                }
-                            }
-                            
-                            Label {
-                                anchors.centerIn: parent
-                                text: Math.round(cpuUsage) + "%"
-                                font.pixelSize: 18
-                                font.bold: true
-                                color: "#333"
-                            }
-                        }
-                    }
-                }
-
-                // CPU Temperature Card
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 120
-                    radius: 16
-                    color: "#FFFFFF"
-                    border.color: "#E0E0E0"
-                    border.width: 1
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 16
-                        spacing: 8
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            
-                            Rectangle {
-                                width: 24
-                                height: 24
-                                radius: 4
-                                color: "#4FC3F7"
-                                
-                                Label {
-                                    anchors.centerIn: parent
-                                    text: "🌡"
-                                    color: "white"
-                                    font.pixelSize: 12
-                                }
-                            }
-                            
-                            Label {
-                                text: "TEMP"
-                                font.pixelSize: 16
-                                font.bold: true
-                                color: "#333"
-                                Layout.fillWidth: true
-                            }
-                        }
-
-                        Item {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            
-                            // Temperature Circular Progress
-                            Rectangle {
-                                anchors.centerIn: parent
-                                width: 70
-                                height: 70
-                                radius: 35
-                                color: "transparent"
-                                border.width: 6
-                                border.color: "#F5F5F5"
-                            }
-                            
-                            Canvas {
-                                id: tempGaugeCanvas
-                                anchors.centerIn: parent
-                                width: 70
-                                height: 70
-                                
-                                onPaint: {
-                                    var ctx = getContext("2d")
-                                    ctx.clearRect(0, 0, width, height)
-                                    
-                                    var centerX = width / 2
-                                    var centerY = height / 2
-                                    var radius = 29
-                                    var startAngle = -Math.PI / 2
-                                    var tempPercent = Math.min(cpuTemp / 100, 1.0) // Max 100°C
-                                    var endAngle = startAngle + tempPercent * 2 * Math.PI
-                                    
-                                    // Draw progress arc
-                                    ctx.beginPath()
-                                    ctx.arc(centerX, centerY, radius, startAngle, endAngle)
-                                    ctx.lineWidth = 6
-                                    ctx.strokeStyle = "#FFD54F"
-                                    ctx.lineCap = "round"
-                                    ctx.stroke()
-                                }
-                                
-                                Connections {
-                                    target: monitorPage
-                                    function onCpuTempChanged() { tempGaugeCanvas.requestPaint() }
-                                }
-                            }
-                            
-                            Label {
-                                anchors.centerIn: parent
-                                text: cpuTemp > 0 ? Math.round(cpuTemp) + "°C" : "N/A"
-                                font.pixelSize: 16
-                                font.bold: true
-                                color: "#333"
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Middle row: RAM and Storage
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 12
-
-                // RAM Card
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 120
-                    radius: 16
-                    color: "#FFFFFF"
-                    border.color: "#E0E0E0"
-                    border.width: 1
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 16
-                        spacing: 8
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            
-                            Rectangle {
-                                width: 24
-                                height: 24
-                                radius: 4
-                                color: "#66BB6A"
-                                
-                                Label {
-                                    anchors.centerIn: parent
-                                    text: "🧠"
-                                    color: "white"
-                                    font.pixelSize: 12
-                                }
-                            }
-                            
-                            Label {
-                                text: "RAM"
-                                font.pixelSize: 16
-                                font.bold: true
-                                color: "#333"
-                                Layout.fillWidth: true
-                            }
-                        }
-
-                        Item {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            
-                            // RAM Circular Progress
-                            Rectangle {
-                                anchors.centerIn: parent
-                                width: 70
-                                height: 70
-                                radius: 35
-                                color: "transparent"
-                                border.width: 6
-                                border.color: "#F5F5F5"
-                            }
-                            
-                            Canvas {
-                                id: ramGaugeCanvas
-                                anchors.centerIn: parent
-                                width: 70
-                                height: 70
-                                
-                                onPaint: {
-                                    var ctx = getContext("2d")
-                                    ctx.clearRect(0, 0, width, height)
-                                    
-                                    var centerX = width / 2
-                                    var centerY = height / 2
-                                    var radius = 29
-                                    var startAngle = -Math.PI / 2
-                                    var ramPercent = ramUsage / 100
-                                    var endAngle = startAngle + ramPercent * 2 * Math.PI
-                                    
-                                    // Draw progress arc
-                                    ctx.beginPath()
-                                    ctx.arc(centerX, centerY, radius, startAngle, endAngle)
-                                    ctx.lineWidth = 6
-                                    ctx.strokeStyle = "#4CAF50"
-                                    ctx.lineCap = "round"
-                                    ctx.stroke()
-                                }
-                                
-                                Connections {
-                                    target: monitorPage
-                                    function onRamUsageChanged() { ramGaugeCanvas.requestPaint() }
-                                }
-                            }
-                            
-                            Label {
-                                anchors.centerIn: parent
-                                text: Math.round(ramUsage) + "%"
-                                font.pixelSize: 12
-                                font.bold: true
-                                color: "#333"
-                            }
-                        }
-                    }
-                }
-
-                // Storage Card  
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 120
-                    radius: 16
-                    color: "#FFFFFF"
-                    border.color: "#E0E0E0"
-                    border.width: 1
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 16
-                        spacing: 8
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            
-                            Rectangle {
-                                width: 24
-                                height: 24
-                                radius: 4
-                                color: "#29B6F6"
-                                
-                                Label {
-                                    anchors.centerIn: parent
-                                    text: "💾"
-                                    color: "white"
-                                    font.pixelSize: 12
-                                }
-                            }
-                            
-                            Label {
-                                text: "Storage"
-                                font.pixelSize: 16
-                                font.bold: true
-                                color: "#333"
-                                Layout.fillWidth: true
-                            }
-                        }
-
-                        Item {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            
-                            // Storage Circular Progress
-                            Rectangle {
-                                anchors.centerIn: parent
-                                width: 70
-                                height: 70
-                                radius: 35
-                                color: "transparent"
-                                border.width: 6
-                                border.color: "#F5F5F5"
-                            }
-                            
-                            Canvas {
-                                id: storageGaugeCanvas
-                                anchors.centerIn: parent
-                                width: 70
-                                height: 70
-                                
-                                onPaint: {
-                                    var ctx = getContext("2d")
-                                    ctx.clearRect(0, 0, width, height)
-                                    
-                                    var centerX = width / 2
-                                    var centerY = height / 2
-                                    var radius = 29
-                                    var startAngle = -Math.PI / 2
-                                    var storagePercent = storageUsage / 100
-                                    var endAngle = startAngle + storagePercent * 2 * Math.PI
-                                    
-                                    // Draw progress arc
-                                    ctx.beginPath()
-                                    ctx.arc(centerX, centerY, radius, startAngle, endAngle)
-                                    ctx.lineWidth = 6
-                                    ctx.strokeStyle = "#03A9F4"
-                                    ctx.lineCap = "round"
-                                    ctx.stroke()
-                                }
-                                
-                                Connections {
-                                    target: monitorPage
-                                    function onStorageUsageChanged() { storageGaugeCanvas.requestPaint() }
-                                }
-                            }
-                            
-                            Label {
-                                anchors.centerIn: parent
-                                text: Math.round(storageUsage) + "%"
-                                font.pixelSize: 12
-                                font.bold: true
-                                color: "#333"
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Bottom: Network Speed Chart
+            // CPU Usage Card
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 180
-                radius: 16
+                radius: 20
                 color: "#FFFFFF"
                 border.color: "#E0E0E0"
-                border.width: 1
+                border.width: 2
+                
+                // Drop shadow effect
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.topMargin: 3
+                    anchors.leftMargin: 3
+                    radius: 20
+                    color: "#10000000"
+                    z: -1
+                }
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 16
-                    spacing: 12
+                    anchors.margins: 20
+                    spacing: 15
 
                     RowLayout {
                         Layout.fillWidth: true
                         
-                        Rectangle {
-                            width: 24
-                            height: 24
-                            radius: 4
-                            color: "#AB47BC"
-                            
-                            Label {
-                                anchors.centerIn: parent
-                                text: "📶"
-                                color: "white"
-                                font.pixelSize: 12
-                            }
+                        Image {
+                            source: "qrc:/assets/icons/cpu.png"
+                            Layout.preferredWidth: 32
+                            Layout.preferredHeight: 32
+                            fillMode: Image.PreserveAspectFit
                         }
                         
                         Label {
-                            text: "Network Speed"
-                            font.pixelSize: 16
+                            text: "CPU USAGE"
+                            font.pixelSize: 18
                             font.bold: true
-                            color: "#333"
+                            color: "#2C3E50"
                             Layout.fillWidth: true
-                        }
-                        
-                        Label {
-                            text: "Usage: " + Math.round(networkUsage) + "%"
-                            font.pixelSize: 14
-                            color: "#AB47BC"
-                            font.bold: true
                         }
                     }
 
-                    // Network Speed Chart
                     Item {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         
+                        // CPU Circular Progress
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 100
+                            height: 100
+                            radius: 50
+                            color: "transparent"
+                            border.width: 8
+                            border.color: "#F5F5F5"
+                        }
+                        
                         Canvas {
-                            id: networkChart
-                            anchors.fill: parent
+                            id: cpuGaugeCanvas
+                            anchors.centerIn: parent
+                            width: 100
+                            height: 100
                             
                             onPaint: {
                                 var ctx = getContext("2d")
                                 ctx.clearRect(0, 0, width, height)
                                 
-                                if (networkHistory.length === 0) return
+                                var centerX = width / 2
+                                var centerY = height / 2
+                                var radius = 42
+                                var startAngle = -Math.PI / 2
+                                var endAngle = startAngle + (cpuUsage / 100) * 2 * Math.PI
                                 
-                                var margin = 10
-                                var chartWidth = width - 2 * margin
-                                var chartHeight = height - 2 * margin
-                                var maxSpeed = Math.max(...networkHistory)
-                                var minSpeed = Math.min(...networkHistory)
-                                var speedRange = maxSpeed - minSpeed
-                                
-                                if (speedRange === 0) speedRange = 1
-                                
-                                // Draw grid lines
-                                ctx.strokeStyle = "#F0F0F0"
-                                ctx.lineWidth = 1
-                                
-                                // Horizontal grid lines
-                                for (var i = 0; i <= 5; i++) {
-                                    var y = margin + (chartHeight * i / 5)
-                                    ctx.beginPath()
-                                    ctx.moveTo(margin, y)
-                                    ctx.lineTo(width - margin, y)
-                                    ctx.stroke()
-                                }
-                                
-                                // Vertical grid lines
-                                for (var j = 0; j < networkHistory.length; j++) {
-                                    var x = margin + (chartWidth * j / (networkHistory.length - 1))
-                                    ctx.beginPath()
-                                    ctx.moveTo(x, margin)
-                                    ctx.lineTo(x, height - margin)
-                                    ctx.stroke()
-                                }
-                                
-                                // Draw area fill
+                                // Draw progress arc
                                 ctx.beginPath()
-                                for (var k = 0; k < networkHistory.length; k++) {
-                                    var xPos = margin + (chartWidth * k / (networkHistory.length - 1))
-                                    var normalizedValue = (networkHistory[k] - minSpeed) / speedRange
-                                    var yPos = height - margin - (chartHeight * normalizedValue)
-                                    
-                                    if (k === 0) {
-                                        ctx.moveTo(xPos, height - margin)
-                                        ctx.lineTo(xPos, yPos)
-                                    } else {
-                                        ctx.lineTo(xPos, yPos)
-                                    }
-                                }
-                                ctx.lineTo(width - margin, height - margin)
-                                ctx.closePath()
-                                
-                                var gradient = ctx.createLinearGradient(0, margin, 0, height - margin)
-                                gradient.addColorStop(0, "rgba(171, 71, 188, 0.3)")
-                                gradient.addColorStop(1, "rgba(171, 71, 188, 0.1)")
-                                ctx.fillStyle = gradient
-                                ctx.fill()
-                                
-                                // Draw line
-                                ctx.beginPath()
-                                for (var l = 0; l < networkHistory.length; l++) {
-                                    var xLine = margin + (chartWidth * l / (networkHistory.length - 1))
-                                    var normalizedLine = (networkHistory[l] - minSpeed) / speedRange
-                                    var yLine = height - margin - (chartHeight * normalizedLine)
-                                    
-                                    if (l === 0) {
-                                        ctx.moveTo(xLine, yLine)
-                                    } else {
-                                        ctx.lineTo(xLine, yLine)
-                                    }
-                                }
-                                ctx.strokeStyle = "#AB47BC"
-                                ctx.lineWidth = 2
+                                ctx.arc(centerX, centerY, radius, startAngle, endAngle)
+                                ctx.lineWidth = 8
+                                ctx.strokeStyle = "#E74C3C"
+                                ctx.lineCap = "round"
                                 ctx.stroke()
                             }
                             
                             Connections {
                                 target: monitorPage
-                                function onNetworkHistoryChanged() { networkChart.requestPaint() }
+                                function onCpuUsageChanged() { cpuGaugeCanvas.requestPaint() }
                             }
+                        }
+                        
+                        Label {
+                            anchors.centerIn: parent
+                            text: Math.round(cpuUsage) + "%"
+                            font.pixelSize: 22
+                            font.bold: true
+                            color: "#2C3E50"
                         }
                     }
                 }
             }
+
+            // CPU Temperature Card
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 180
+                radius: 20
+                color: "#FFFFFF"
+                border.color: "#E0E0E0"
+                border.width: 2
+                
+                // Drop shadow effect
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.topMargin: 3
+                    anchors.leftMargin: 3
+                    radius: 20
+                    color: "#10000000"
+                    z: -1
+                }
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 20
+                    spacing: 15
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        
+                        Image {
+                            source: "qrc:/assets/icons/temp.png"
+                            Layout.preferredWidth: 32
+                            Layout.preferredHeight: 32
+                            fillMode: Image.PreserveAspectFit
+                        }
+                        
+                        Label {
+                            text: "TEMPERATURE"
+                            font.pixelSize: 18
+                            font.bold: true
+                            color: "#2C3E50"
+                            Layout.fillWidth: true
+                        }
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        
+                        // Temperature Circular Progress
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 100
+                            height: 100
+                            radius: 50
+                            color: "transparent"
+                            border.width: 8
+                            border.color: "#F5F5F5"
+                        }
+                        
+                        Canvas {
+                            id: tempGaugeCanvas
+                            anchors.centerIn: parent
+                            width: 100
+                            height: 100
+                            
+                            onPaint: {
+                                var ctx = getContext("2d")
+                                ctx.clearRect(0, 0, width, height)
+                                
+                                var centerX = width / 2
+                                var centerY = height / 2
+                                var radius = 42
+                                var startAngle = -Math.PI / 2
+                                var tempPercent = Math.min(cpuTemp / 100, 1.0) // Max 100°C
+                                var endAngle = startAngle + tempPercent * 2 * Math.PI
+                                
+                                // Draw progress arc
+                                ctx.beginPath()
+                                ctx.arc(centerX, centerY, radius, startAngle, endAngle)
+                                ctx.lineWidth = 8
+                                ctx.strokeStyle = "#F39C12"
+                                ctx.lineCap = "round"
+                                ctx.stroke()
+                            }
+                            
+                            Connections {
+                                target: monitorPage
+                                function onCpuTempChanged() { tempGaugeCanvas.requestPaint() }
+                            }
+                        }
+                        
+                        Label {
+                            anchors.centerIn: parent
+                            text: cpuTemp > 0 ? Math.round(cpuTemp) + "°C" : "N/A"
+                            font.pixelSize: 20
+                            font.bold: true
+                            color: "#2C3E50"
+                        }
+                    }
+                }
+            }
+        }
+
+        // Bottom row: RAM and Storage
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 20
+
+            // RAM Card
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 180
+                radius: 20
+                color: "#FFFFFF"
+                border.color: "#E0E0E0"
+                border.width: 2
+                
+                // Drop shadow effect
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.topMargin: 3
+                    anchors.leftMargin: 3
+                    radius: 20
+                    color: "#10000000"
+                    z: -1
+                }
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 20
+                    spacing: 15
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        
+                        Image {
+                            source: "qrc:/assets/icons/ram.png"
+                            Layout.preferredWidth: 32
+                            Layout.preferredHeight: 32
+                            fillMode: Image.PreserveAspectFit
+                        }
+                        
+                        Label {
+                            text: "RAM USAGE"
+                            font.pixelSize: 18
+                            font.bold: true
+                            color: "#2C3E50"
+                            Layout.fillWidth: true
+                        }
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        
+                        // RAM Circular Progress
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 100
+                            height: 100
+                            radius: 50
+                            color: "transparent"
+                            border.width: 8
+                            border.color: "#F5F5F5"
+                        }
+                        
+                        Canvas {
+                            id: ramGaugeCanvas
+                            anchors.centerIn: parent
+                            width: 100
+                            height: 100
+                            
+                            onPaint: {
+                                var ctx = getContext("2d")
+                                ctx.clearRect(0, 0, width, height)
+                                
+                                var centerX = width / 2
+                                var centerY = height / 2
+                                var radius = 42
+                                var startAngle = -Math.PI / 2
+                                var ramPercent = ramUsage / 100
+                                var endAngle = startAngle + ramPercent * 2 * Math.PI
+                                
+                                // Draw progress arc
+                                ctx.beginPath()
+                                ctx.arc(centerX, centerY, radius, startAngle, endAngle)
+                                ctx.lineWidth = 8
+                                ctx.strokeStyle = "#27AE60"
+                                ctx.lineCap = "round"
+                                ctx.stroke()
+                            }
+                            
+                            Connections {
+                                target: monitorPage
+                                function onRamUsageChanged() { ramGaugeCanvas.requestPaint() }
+                            }
+                        }
+                        
+                        Label {
+                            anchors.centerIn: parent
+                            text: Math.round(ramUsage) + "%"
+                            font.pixelSize: 22
+                            font.bold: true
+                            color: "#2C3E50"
+                        }
+                    }
+                }
+            }
+
+            // Storage Card  
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 180
+                radius: 20
+                color: "#FFFFFF"
+                border.color: "#E0E0E0"
+                border.width: 2
+                
+                // Drop shadow effect
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.topMargin: 3
+                    anchors.leftMargin: 3
+                    radius: 20
+                    color: "#10000000"
+                    z: -1
+                }
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 20
+                    spacing: 15
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        
+                        Image {
+                            source: "qrc:/assets/icons/storage.png"
+                            Layout.preferredWidth: 32
+                            Layout.preferredHeight: 32
+                            fillMode: Image.PreserveAspectFit
+                        }
+                        
+                        Label {
+                            text: "STORAGE"
+                            font.pixelSize: 18
+                            font.bold: true
+                            color: "#2C3E50"
+                            Layout.fillWidth: true
+                        }
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        
+                        // Storage Circular Progress
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 100
+                            height: 100
+                            radius: 50
+                            color: "transparent"
+                            border.width: 8
+                            border.color: "#F5F5F5"
+                        }
+                        
+                        Canvas {
+                            id: storageGaugeCanvas
+                            anchors.centerIn: parent
+                            width: 100
+                            height: 100
+                            
+                            onPaint: {
+                                var ctx = getContext("2d")
+                                ctx.clearRect(0, 0, width, height)
+                                
+                                var centerX = width / 2
+                                var centerY = height / 2
+                                var radius = 42
+                                var startAngle = -Math.PI / 2
+                                var storagePercent = storageUsage / 100
+                                var endAngle = startAngle + storagePercent * 2 * Math.PI
+                                
+                                // Draw progress arc
+                                ctx.beginPath()
+                                ctx.arc(centerX, centerY, radius, startAngle, endAngle)
+                                ctx.lineWidth = 8
+                                ctx.strokeStyle = "#3498DB"
+                                ctx.lineCap = "round"
+                                ctx.stroke()
+                            }
+                            
+                            Connections {
+                                target: monitorPage
+                                function onStorageUsageChanged() { storageGaugeCanvas.requestPaint() }
+                            }
+                        }
+                        
+                        Label {
+                            anchors.centerIn: parent
+                            text: Math.round(storageUsage) + "%"
+                            font.pixelSize: 22
+                            font.bold: true
+                            color: "#2C3E50"
+                        }
+                    }
+                }
+            }
+        }
 
         Item { Layout.fillHeight: true } // Fill remaining space
     }

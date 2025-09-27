@@ -8,79 +8,41 @@ Item {
     id: adminPage
     // ---- Signals cho điều hướng ----
     signal backRequested()
-    signal editUserInfoClicked()
     signal networkSettingsClicked()
-    signal historyClicked()
+    signal changePasswordClicked()
     signal monitorClicked()
-    signal boxSettingsClicked()
-    signal logsClicked()
-    signal logoClicked()
     
     property bool wifiConnected: true // Will be set from parent
-
-    // ===== Header =====
-    HeaderBar {
-        id: header
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        wifiConnected: adminPage.wifiConnected
-        
-        onLeftClicked: {
-            // console.log("Logo clicked in SettingAdmin - going back to Home") // Disabled for RPi optimization
-            adminPage.logoClicked()
-        }
+    
+    // ===== Background =====
+    Image {
+        anchors.fill: parent
+        source: "qrc:/assets/images/background.png"
+        fillMode: Image.PreserveAspectCrop
+        z: 0
     }
 
-    // ===== Tiêu đề + avatar + nút back =====
-    RowLayout {
-        id: titleRow
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: header.bottom
-        anchors.margins: 12
-        spacing: 8
-        height: 56
+    // ===== Header =====
+    Rectangle {
+        id: headerSection
+        width: parent.width; height: 80
+        color: "transparent"; z: 1
 
-        // nút back tròn
-        Image {
-            Layout.preferredWidth: 40
-            Layout.preferredHeight: 40
-            source: "qrc:/assets/icons/btn_back.png"
-            fillMode: Image.PreserveAspectFit
-            
-            MouseArea {
-                anchors.fill: parent
-                onClicked: adminPage.backRequested()
-            }
+        // Back
+        Rectangle {
+            width: 60; height: 60; color: "transparent"
+            anchors.left: parent.left; anchors.leftMargin: 20
+            anchors.verticalCenter: parent.verticalCenter
+            Image { anchors.centerIn: parent; source: "qrc:/assets/icons/back.png"; width: 40; height: 40; fillMode: Image.PreserveAspectFit }
+            MouseArea { anchors.fill: parent; onClicked: adminPage.backRequested() }
         }
 
-        // avatar + greeting
-        RowLayout {
-            spacing: 10
-            Layout.fillWidth: true
-            Layout.alignment: Qt.AlignVCenter
-
-            Rectangle {
-                width: 40; height: 40; radius: 20
-                color: "#EAF2FF"
-                border.color: "#D2D7DE"
-                Image {
-                    anchors.fill: parent
-                    anchors.margins: 2
-                    source: "qrc:/assets/images/user.png"  // thay bằng ảnh của bạn
-                    fillMode: Image.PreserveAspectFit
-                    clip: true
-                }
-            }
-
-            Label {
-                text: "Hello, Staff"
-                font.pixelSize: 20
-                font.bold: true
-                color: "#333"
-                verticalAlignment: Text.AlignVCenter
-            }
+        // Title
+        Text {
+            anchors.centerIn: parent
+            text: "SYSTEM SETTING"
+            color: "#2C3E50"
+            font.pixelSize: 32; font.bold: true
         }
     }
 
@@ -91,75 +53,68 @@ Item {
         property string title: ""
         signal clicked()
 
-        Layout.fillWidth: true
-        height: 74
-        radius: 16
-        color: "#FFFFFF"
-        border.color: "#C9CED6"
+        width: 350
+        height: 80
+        radius: 40
+        color: "white"
+        border.color: "#E0E0E0"
+        border.width: 2
         antialiasing: true
 
-        RowLayout {
+        Row {
             anchors.fill: parent
-            anchors.margins: 14
-            spacing: 12
+            anchors.margins: 20
+            spacing: 20
 
             Image {
                 source: card.iconSource
-                Layout.preferredWidth: 34
-                Layout.preferredHeight: 34
+                width: 40
+                height: 40
                 fillMode: Image.PreserveAspectFit
+                anchors.verticalCenter: parent.verticalCenter
             }
 
-            Label {
+            Text {
                 text: card.title
-                font.pixelSize: 16
+                font.pixelSize: 20
                 font.bold: true
-                color: "#333"
-                Layout.fillWidth: true
-                verticalAlignment: Text.AlignVCenter
+                color: "#2C3E50"
+                anchors.verticalCenter: parent.verticalCenter
+                width: parent.width - 40 - 20 - 40 - 20
             }
 
-            Label {
-                text: "\u203A" // ›
-                font.pixelSize: 20
-                color: "#333"
-                verticalAlignment: Text.AlignVCenter
+            Text {
+                text: ">"
+                font.pixelSize: 24
+                color: "#BDC3C7"
+                anchors.verticalCenter: parent.verticalCenter
             }
         }
 
         MouseArea {
             anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
             onClicked: card.clicked()
         }
     }
 
     // ===== Danh sách mục =====
-    ColumnLayout {
-        anchors.top: titleRow.bottom
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.margins: 16
-        spacing: 14
-
-        SettingItem {
-            iconSource: "qrc:/assets/icons/edit_user.png"
-            title: "Edit User Info"
-            onClicked: adminPage.editUserInfoClicked()
-        }
+    Column {
+        anchors.top: headerSection.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.topMargin: 50
+        spacing: 30
+        z: 1
 
         SettingItem {
             iconSource: "qrc:/assets/icons/network.png"
-            title: "Network Settings"
+            title: "Network"
             onClicked: adminPage.networkSettingsClicked()
         }
 
         SettingItem {
-            iconSource: "qrc:/assets/icons/history.png"
-            title: "History IN/OUT"
-            onClicked: adminPage.historyClicked()
+            iconSource: "qrc:/assets/icons/password.png"
+            title: "Change Password"
+            onClicked: adminPage.changePasswordClicked()
         }
 
         SettingItem {
@@ -167,7 +122,5 @@ Item {
             title: "Monitor"
             onClicked: adminPage.monitorClicked()
         }
-
-        Item { Layout.fillHeight: true }
     }
 }

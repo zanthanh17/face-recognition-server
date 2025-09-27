@@ -891,3 +891,51 @@ void QmlBridge::syncCachedLogs()
         qDebug() << "Sync cached logs - TODO: implement";
     }
 }
+
+// Password/Authentication operations
+bool QmlBridge::verifyPassword(const QString &password)
+{
+    // Get stored password from settings
+    QString storedPassword = getSetting("admin_password", "123456"); // Default password is 123456
+    
+    qDebug() << "QmlBridge: Verifying password. Length:" << password.length();
+    
+    bool isValid = (password == storedPassword);
+    qDebug() << "QmlBridge: Password verification result:" << isValid;
+    
+    return isValid;
+}
+
+bool QmlBridge::verifyCurrentPassword(const QString &password)
+{
+    // Same as verifyPassword for now
+    return verifyPassword(password);
+}
+
+bool QmlBridge::changePassword(const QString &currentPassword, const QString &newPassword)
+{
+    qDebug() << "QmlBridge: Attempting to change password";
+    
+    // First verify current password
+    if (!verifyCurrentPassword(currentPassword)) {
+        qDebug() << "QmlBridge: Current password verification failed";
+        return false;
+    }
+    
+    // Validate new password
+    if (newPassword.length() < 1) {
+        qDebug() << "QmlBridge: New password is too short";
+        return false;
+    }
+    
+    // Save new password
+    bool success = saveSetting("admin_password", newPassword);
+    
+    if (success) {
+        qDebug() << "QmlBridge: Password changed successfully";
+    } else {
+        qDebug() << "QmlBridge: Failed to save new password";
+    }
+    
+    return success;
+}

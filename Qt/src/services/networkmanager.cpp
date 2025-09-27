@@ -6,6 +6,7 @@
 #include <QFile>
 #include <QStandardPaths>
 #include <QRegularExpression>
+#include <QThread>
 
 NetworkManager::NetworkManager(QObject *parent)
     : QObject(parent)
@@ -86,6 +87,14 @@ QVariantList NetworkManager::getAvailableNetworks()
 bool NetworkManager::connectToNetwork(const QString &ssid, const QString &password)
 {
     RPI_DEBUG_VAR("Attempting to connect to network", ssid);
+    RPI_DEBUG_VAR("Password length", password.length());
+    
+    // First, check if this network is already saved with a different password
+    // If so, delete the saved connection first
+    QProcess deleteProcess;
+    deleteProcess.start("nmcli", QStringList() << "connection" << "delete" << ssid);
+    deleteProcess.waitForFinished(5000);
+    // Don't check exit code - it's OK if there's no existing connection to delete
     
     // Use nmcli to connect to network (Linux)
     QProcess process;
@@ -94,25 +103,88 @@ bool NetworkManager::connectToNetwork(const QString &ssid, const QString &passwo
     if (password.isEmpty()) {
         // Open network
         args << "device" << "wifi" << "connect" << ssid;
+        RPI_DEBUG("Connecting to open network");
     } else {
-        // Secured network
+        // Secured network - use proper escaping for password
         args << "device" << "wifi" << "connect" << ssid << "password" << password;
+        RPI_DEBUG("Connecting to secured network");
     }
     
-    process.start("nmcli", args);
-    process.waitForFinished();
+    // Debug the full command
+    QString fullCommand = "nmcli " + args.join(" ");
+    RPI_DEBUG_VAR("Full nmcli command", fullCommand);
     
-    if (process.exitCode() == 0) {
-        m_isConnected = true;
-        m_currentNetwork = ssid;
-        m_lastConnectedNetwork = ssid; // Save for auto-reconnect
-        emit networkConnected(ssid);
-        RPI_DEBUG_VAR("Successfully connected to", ssid);
-        return true;
+    process.start("nmcli", args);
+    bool finished = process.waitForFinished(30000); // 30 second timeout
+    
+    if (!finished) {
+        RPI_ERROR("nmcli command timed out");
+        emit connectionFailed("Connection timeout");
+        return false;
+    }
+    
+    int exitCode = process.exitCode();
+    QString stdOut = QString::fromLocal8Bit(process.readAllStandardOutput());
+    QString stdErr = QString::fromLocal8Bit(process.readAllStandardError());
+    
+    RPI_DEBUG_VAR("nmcli exit code", exitCode);
+    RPI_DEBUG_VAR("nmcli stdout", stdOut);
+    RPI_DEBUG_VAR("nmcli stderr", stdErr);
+    
+    if (exitCode == 0) {
+        // Connection command succeeded, but let's verify we're actually connected
+        QThread::msleep(2000); // Wait 2 seconds for connection to establish
+        
+        // Check if we're actually connected to this network
+        bool actuallyConnected = false;
+        QProcess checkProcess;
+        checkProcess.start("nmcli", QStringList() << "-t" << "-f" << "ACTIVE,SSID" << "dev" << "wifi");
+        checkProcess.waitForFinished(5000);
+        
+        if (checkProcess.exitCode() == 0) {
+            QString output = QString::fromLocal8Bit(checkProcess.readAllStandardOutput());
+            QStringList lines = output.split('\n');
+            
+            for (const QString &line : lines) {
+                if (line.startsWith("yes:") && line.contains(ssid)) {
+                    actuallyConnected = true;
+                    break;
+                }
+            }
+        }
+        
+        if (actuallyConnected) {
+            // Double check with a ping test
+            QProcess pingProcess;
+            pingProcess.start("ping", QStringList() << "-c" << "1" << "-W" << "3" << "8.8.8.8");
+            pingProcess.waitForFinished(5000);
+            
+            bool internetConnected = (pingProcess.exitCode() == 0);
+            RPI_DEBUG_VAR("Internet connectivity test", internetConnected);
+            
+            m_isConnected = true;
+            m_currentNetwork = ssid;
+            m_lastConnectedNetwork = ssid; // Save for auto-reconnect
+            emit networkConnected(ssid);
+            RPI_DEBUG_VAR("Successfully connected and verified connection to", ssid);
+            return true;
+        } else {
+            RPI_ERROR("nmcli reported success but connection verification failed");
+            emit connectionFailed("Connection verification failed");
+            return false;
+        }
     } else {
-        QString error = QString::fromLocal8Bit(process.readAllStandardError());
-        RPI_ERROR("Failed to connect:" << error);
-        emit connectionFailed("Failed to connect to network: " + error);
+        // Check specific error types
+        if (stdErr.contains("Secrets were required") || stdErr.contains("password")) {
+            RPI_ERROR("Authentication failed - incorrect password");
+            emit connectionFailed("Incorrect password");
+        } else if (stdErr.contains("No network with SSID")) {
+            RPI_ERROR("Network not found");
+            emit connectionFailed("Network not found");
+        } else {
+            RPI_ERROR("Failed to connect:" << stdErr);
+            emit connectionFailed("Failed to connect: " + stdErr);
+        }
         return false;
     }
 }

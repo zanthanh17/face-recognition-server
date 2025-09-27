@@ -7,6 +7,8 @@ Item {
     id: numericKeypadPage
     signal backToHomeRequested()
     
+    property bool showSuccessMessage: false
+    
     // Background image
     Image {
         anchors.fill: parent
@@ -79,6 +81,55 @@ Item {
             echoMode: TextInput.Password
             passwordCharacter: "●"
             inputMethodHints: Qt.ImhDigitsOnly
+        }
+    }
+    
+    // Success Message Overlay
+    Rectangle {
+        id: successOverlay
+        visible: showSuccessMessage
+        anchors.fill: parent
+        color: Qt.rgba(0, 0, 0, 0.7)
+        z: 100
+        
+        Rectangle {
+            width: 300
+            height: 200
+            color: "white"
+            radius: 15
+            anchors.centerIn: parent
+            
+            Column {
+                anchors.centerIn: parent
+                spacing: 20
+                
+                Image {
+                    source: "qrc:/assets/icons/success-check.png"
+                    width: 60
+                    height: 60
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    fillMode: Image.PreserveAspectFit
+                }
+                
+                Text {
+                    text: "Login\nSuccessful!"
+                    color: "#27AE60"
+                    font.pixelSize: 18
+                    font.bold: true
+                    horizontalAlignment: Text.AlignHCenter
+                    anchors.horizontalCenter: parent.horizontalCenter
+                }
+            }
+        }
+        
+        Timer {
+            id: successTimer
+            interval: 2000
+            running: showSuccessMessage
+            onTriggered: {
+                showSuccessMessage = false
+                numericKeypadPage.backToHomeRequested()
+            }
         }
     }
     
@@ -208,8 +259,19 @@ Item {
                     anchors.fill: parent
                     onClicked: {
                         console.log("Password entered:", passwordInput.text)
-                        // Add your authentication logic here
-                        // For example: backend.authenticateWithPassword(passwordInput.text)
+                        
+                        // Verify password with backend
+                        if (passwordInput.text.length > 0) {
+                            let isValid = backend.verifyPassword(passwordInput.text)
+                            if (isValid) {
+                                // Show success message
+                                showSuccessMessage = true
+                            } else {
+                                // Clear password field for retry
+                                passwordInput.text = ""
+                                console.log("Incorrect password")
+                            }
+                        }
                     }
                     
                     onPressed: parent.color = "#0056CC"

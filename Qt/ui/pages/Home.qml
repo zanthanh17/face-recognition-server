@@ -9,9 +9,14 @@ Item {
     signal openSettingsRequested()
     signal startFaceRecognition()
     signal openNumericKeypad()
+    signal openUserListRequested()
+    signal openHistoryRequested()
 
     // Store last captured image for avatar
     property string lastCapturedImage: ""
+    
+    // WiFi connection status
+    property bool wifiConnected: true
 
     // Expose function to deactivate camera from outside if needed
     function deactivateCamera() {
@@ -55,7 +60,7 @@ Item {
         // Title text
         Column {
             anchors.left: logo.right
-            anchors.right: parent.right
+            anchors.right: wifiIndicator.left
             anchors.leftMargin: 20
             anchors.rightMargin: 20
             anchors.verticalCenter: logo.verticalCenter
@@ -75,6 +80,26 @@ Item {
                 color: "#2C3E50"
                 horizontalAlignment: Text.AlignHCenter
                 width: parent.width
+            }
+        }
+        
+        // WiFi Indicator (top right)
+        Rectangle {
+            id: wifiIndicator
+            width: 60
+            height: 60
+            color: "transparent"
+            anchors.right: parent.right
+            anchors.rightMargin: 20
+            anchors.top: parent.top
+            anchors.topMargin: 20
+            
+            Image {
+                anchors.centerIn: parent
+                source: wifiConnected ? "qrc:/assets/icons/wifi.png" : "qrc:/assets/icons/disconnectwifi.png"
+                width: 40
+                height: 40
+                fillMode: Image.PreserveAspectFit
             }
         }
     }
@@ -105,6 +130,71 @@ Item {
             font.pixelSize: 24
             horizontalAlignment: Text.AlignHCenter
             width: parent.width
+        }
+    }
+
+    // ====== Network Error Notification (center) ======
+    Rectangle {
+        id: networkErrorNotification
+        visible: !wifiConnected
+        width: 400
+        height: 120
+        color: "#FFEBEE"
+        border.color: "#F44336"
+        border.width: 2
+        radius: 15
+        anchors.centerIn: parent
+        z: 10
+        
+        // Drop shadow
+        Rectangle {
+            anchors.fill: parent
+            anchors.topMargin: 3
+            anchors.leftMargin: 3
+            radius: 15
+            color: "#20000000"
+            z: -1
+        }
+        
+        Row {
+            anchors.centerIn: parent
+            spacing: 20
+            
+            // Error icon
+            Image {
+                source: "qrc:/assets/icons/network_error.png"
+                width: 60
+                height: 60
+                fillMode: Image.PreserveAspectFit
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            
+            // Error text
+            Column {
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 5
+                
+                Text {
+                    text: "Network Error"
+                    font.pixelSize: 24
+                    font.bold: true
+                    color: "#D32F2F"
+                }
+                
+                Text {
+                    text: "Please! Connect to wifi"
+                    font.pixelSize: 18
+                    color: "#666666"
+                }
+            }
+        }
+        
+        // Blinking animation
+        SequentialAnimation on opacity {
+            running: !wifiConnected
+            loops: Animation.Infinite
+            NumberAnimation { to: 0.3; duration: 1000 }
+            NumberAnimation { to: 1.0; duration: 1000 }
         }
     }
 
@@ -210,7 +300,10 @@ Item {
                     }
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: console.log("User list clicked")
+                        onClicked: {
+                            console.log("User list clicked")
+                            homePage.openUserListRequested()
+                        }
                     }
                 }
 
@@ -224,7 +317,10 @@ Item {
                     }
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: console.log("Home clicked - already on home")
+                        onClicked: {
+                            console.log("System settings clicked")
+                            homePage.openSettingsRequested()
+                        }
                     }
                 }
 
@@ -240,7 +336,7 @@ Item {
                         anchors.fill: parent
                         onClicked: {
                             console.log("History clicked")
-                            homePage.openSettingsRequested()
+                            homePage.openHistoryRequested()
                         }
                     }
                 }
@@ -265,6 +361,18 @@ Item {
         function onServerConnectionTested(success, message) {
             console.log("Server connection test:", success, message)
         }
+        function onWifiConnectedChanged() {
+            homePage.wifiConnected = backend.getWifiConnected()
+            console.log("WiFi status changed:", homePage.wifiConnected)
+        }
+    }
+    
+    // Update WiFi status on page load
+    Component.onCompleted: {
+        console.log("Home page completed")
+        if (typeof backend !== "undefined") {
+            homePage.wifiConnected = backend.getWifiConnected()
+        }
     }
 
     // ====== Keyboard shortcuts for testing ======
@@ -275,7 +383,10 @@ Item {
     }
 
     // Handle page visibility changes
-    onVisibleChanged: console.log("Home page visibility:", visible)
-
-    Component.onCompleted: console.log("Home page completed")
+    onVisibleChanged: {
+        console.log("Home page visibility:", visible)
+        if (visible && typeof backend !== "undefined") {
+            homePage.wifiConnected = backend.getWifiConnected()
+        }
+    }
 }

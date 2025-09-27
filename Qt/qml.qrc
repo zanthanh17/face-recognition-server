@@ -15,22 +15,25 @@
         <file>assets/icons/enter.png</file>
         <file>assets/icons/remove.png</file>
         <file>assets/icons/back.png</file>
+        <file>assets/icons/search.png</file>
         <file>assets/icons/logo.jpg</file>
-        <file>assets/icons/auth.png</file>
         <file>assets/icons/wifi.png</file>
+        <file>assets/icons/password.png</file>
         <file>assets/icons/disconnectwifi.png</file>
         <file>assets/icons/eye_open.png</file>
         <file>assets/icons/eye_close.png</file>
-        <file>assets/icons/btn_auth.png</file>
         <file>assets/icons/setting.png</file>
         <file>assets/icons/face-frame.png</file>
         <file>assets/icons/success-check.png</file>
         <file>assets/icons/failed.png</file>
-        <file>assets/icons/edit_user.png</file>
         <file>assets/icons/network.png</file>
         <file>assets/icons/history.png</file>
         <file>assets/icons/lock.png</file>
         <file>assets/icons/monitor.png</file>
+        <file>assets/icons/cpu.png</file>
+        <file>assets/icons/temp.png</file>
+        <file>assets/icons/ram.png</file>
+        <file>assets/icons/storage.png</file>
         <file>assets/icons/empty_search.png</file>
         <file>assets/images/user.png</file>
         <file>assets/images/user_bg.png</file>
@@ -42,5 +45,7 @@
         <file>ui/pages_component/UserInfor.qml</file>
         <file>ui/pages/Home.qml</file>
         <file>assets/images/background.png</file>
+        <file>ui/pages/ChangePass.qml</file>
+        <file>assets/icons/network_error.png</file>
     </qresource>
 </RCC>

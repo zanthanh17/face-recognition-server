@@ -81,6 +81,14 @@ Window {
                     console.log("Opening numeric keypad")
                     stack.push(numericKeypadComponent)
                 }
+                function onOpenUserListRequested() {
+                    console.log("Home: Opening user list")
+                    stack.push(editUserComponent)
+                }
+                function onOpenHistoryRequested() {
+                    console.log("Home: Opening history")
+                    stack.push(historyComponent)
+                }
             }
         }
     }
@@ -157,22 +165,14 @@ Window {
                 target: settingAdminLoader.item
                 ignoreUnknownSignals: true
                 function onBackRequested() { stack.pop() }
-                function onEditUserInfoClicked() { 
-                    stack.push(editUserComponent) 
-                }
                 function onNetworkSettingsClicked() { 
                     stack.push(networkSettingsComponent) 
                 }
-                function onHistoryClicked() {
-                    stack.push(historyComponent)
+                function onChangePasswordClicked() {
+                    stack.push(changePasswordComponent)
                 }
                 function onMonitorClicked() {
                     stack.push(systemMonitorComponent)
-                }
-                function onLogoClicked() { 
-                    console.log("Logo clicked - going back to Home")
-                    stack.clear()
-                    stack.push(homeComponent)
                 }
                 // function onBoxSettingsClicked() { stack.push(boxComponent) }
                 // function onLogsClicked() { stack.push(logsComponent) }
@@ -273,6 +273,26 @@ Window {
                     root.globalWifiConnected = success
                     console.log("WiFi status changed:", success)
                 }
+            }
+        }
+    }
+
+    // ---------- ChangePassword (từ SettingAdmin) ----------
+    Component {
+        id: changePasswordComponent
+        Item {
+            Loader {
+                id: changePasswordLoader
+                anchors.fill: parent
+                source: "qrc:/ui/pages/ChangePass.qml"
+                onLoaded: {
+                    if (item) item.wifiConnected = Qt.binding(() => root.globalWifiConnected)
+                }
+            }
+            Connections {
+                target: changePasswordLoader.item
+                ignoreUnknownSignals: true
+                function onBackRequested() { stack.pop() }
             }
         }
     }

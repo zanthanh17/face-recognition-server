@@ -109,6 +109,11 @@ public:
     Q_INVOKABLE QString getCurrentNetwork();
     Q_INVOKABLE void refreshNetworks();
 
+    // Password/Authentication operations
+    Q_INVOKABLE bool verifyPassword(const QString &password);
+    Q_INVOKABLE bool verifyCurrentPassword(const QString &password);
+    Q_INVOKABLE bool changePassword(const QString &currentPassword, const QString &newPassword);
+    
     // Utility functions
     Q_INVOKABLE QString getCurrentDateTime();
     Q_INVOKABLE void refreshData();

@@ -7,56 +7,67 @@ import "../components"
 Item {
     id: historyPage
     signal backRequested()
-    
-    property bool wifiConnected: true // Will be set from parent
 
-    // Real history data from API
-    property var historyData: []
-    property bool isLoading: false
+    property bool  wifiConnected: true
+    property bool  keyboardOpened: false
+    property int   filteredCount: 0
+
+    // Real history data from API / backend
+    property var   historyData: []
+    property bool  isLoading: false
     property string errorMessage: ""
-    
-    // Load history data from API
+
+    // ===== Utils =====
+    function recomputeFilteredCount() {
+        const key = (searchField.text || "").toLowerCase()
+        let n = 0
+        if (historyData) {
+            for (let i = 0; i < historyData.length; ++i) {
+                const it = historyData[i]
+                const ok = key.length === 0
+                           || (it.name || "").toLowerCase().indexOf(key) !== -1
+                           || (it.time || "").toLowerCase().indexOf(key) !== -1
+                           || (it.date || "").toLowerCase().indexOf(key) !== -1
+                if (ok) n++
+            }
+        }
+        filteredCount = n
+    }
+
+    // Background
+    Image {
+        anchors.fill: parent
+        source: "qrc:/assets/images/background.png"
+        fillMode: Image.PreserveAspectCrop
+        z: 0
+    }
+
+    // Mock loading → rồi nạp từ backend global history
     function loadHistoryData() {
         isLoading = true
         errorMessage = ""
-        
-        console.log("Loading history data...")
-        
-        // Simulate loading delay
         loadingTimer.start()
     }
-    
-            // Timer to simulate loading
-        Timer {
-            id: loadingTimer
-            interval: 500
-            repeat: false
-            onTriggered: {
-                isLoading = false
-                
-                // Load global recognition history from backend
-                loadGlobalRecognitionHistory()
-            }
+    Timer {
+        id: loadingTimer
+        interval: 500
+        repeat: false
+        onTriggered: {
+            isLoading = false
+            loadGlobalRecognitionHistory()
         }
-    
-    // Load global recognition history from backend
+    }
+
     function loadGlobalRecognitionHistory() {
         var globalHistory = backend.recognitionHistory
-        console.log("Loading global recognition history, length:", globalHistory.length)
-        
         if (globalHistory && globalHistory.length > 0) {
             historyData = globalHistory.map(function(item) {
-                // Use captured image if available, otherwise fallback to default
                 var avatarUrl = "qrc:/assets/images/user.png"
                 if (item.captured_image && item.captured_image.length > 0) {
-                    // Add data URL prefix if it's a base64 string
-                    if (item.captured_image.startsWith("data:")) {
-                        avatarUrl = item.captured_image
-                    } else {
-                        avatarUrl = "data:image/jpeg;base64," + item.captured_image
-                    }
+                    avatarUrl = item.captured_image.startsWith("data:")
+                              ? item.captured_image
+                              : "data:image/jpeg;base64," + item.captured_image
                 }
-                
                 return {
                     name: item.name || "Unknown",
                     time: item.time || "00:00:00",
@@ -66,661 +77,328 @@ Item {
                     status: item.status || "failed"
                 }
             })
-            console.log("Loaded", historyData.length, "recognition events from global history")
         } else {
             errorMessage = "No history logs yet. Try scanning your face!"
-            console.log("No global recognition history found")
         }
+        historyPage.recomputeFilteredCount()
     }
-    
-    // Function to add recognition event when face is recognized
+
     function addRecognitionEvent(userName, success, capturedImage) {
         var now = new Date()
         var avatarUrl = "qrc:/assets/images/user.png"
-        if (capturedImage && capturedImage.length > 0) {
-            // Add data URL prefix if it's a base64 string
-            if (capturedImage.startsWith("data:")) {
-                avatarUrl = capturedImage
-            } else {
-                avatarUrl = "data:image/jpeg;base64," + capturedImage
-            }
-        }
-        
-        var event = {
+        if (capturedImage && capturedImage.length > 0)
+            avatarUrl = capturedImage.startsWith("data:")
+                      ? capturedImage
+                      : "data:image/jpeg;base64," + capturedImage
+        historyData.unshift({
             name: userName || "Unknown",
             time: Qt.formatTime(now, "hh:mm:ss"),
             date: Qt.formatDate(now, "yyyy-MM-dd"),
             avatar: avatarUrl,
             type: success ? "checkin" : "checkout",
             status: success ? "success" : "failed"
-        }
-        
-        // Add to beginning of history
-        historyData.unshift(event)
-        
-        console.log("Added recognition event:", event)
-        console.log("History data updated, length:", historyData.length)
-    }
-    
-    // Handle history data loaded from backend
-    function onHistoryDataLoaded(data) {
-        isLoading = false
-        console.log("Processing history data:", data)
-        
-        if (data && Array.isArray(data)) {
-            try {
-                historyData = data.map(function(item) {
-                    // Ensure all fields exist with safe defaults
-                    var safeItem = {
-                        id: item.id || 0,
-                        ts: item.ts || 0,
-                        name: item.name || "Unknown",
-                        matched: item.matched || false,
-                        distance: item.distance || 0.0,
-                        device_id: item.device_id || "Unknown"
-                    }
-                    
-                    var date = new Date(safeItem.ts * 1000)
-                    return {
-                        id: safeItem.id,
-                        name: safeItem.name,
-                        time: Qt.formatTime(date, "hh:mm:ss"),
-                        date: Qt.formatDate(date, "yyyy-MM-dd"),
-                        avatar: "qrc:/assets/images/user.png",
-                        type: safeItem.matched ? "checkin" : "checkout",
-                        status: safeItem.matched ? "success" : "failed",
-                        distance: safeItem.distance,
-                        device_id: safeItem.device_id
-                    }
-                })
-                console.log("Processed", historyData.length, "history items")
-            } catch (error) {
-                console.error("Error processing history data:", error)
-                errorMessage = "Error processing history data: " + error
-            }
-        } else {
-            console.log("Invalid history data format:", data)
-            errorMessage = "Invalid history data format"
-        }
-    }
-    
-        // Real-time recognition history data from global backend
-    property var recognitionHistory: []
-
-    HeaderBar {
-        id: header
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        wifiConnected: historyPage.wifiConnected
+        })
+        historyPage.recomputeFilteredCount()
     }
 
-    RowLayout {
-        id: titleRow
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: header.bottom
-        anchors.margins: 12
-        spacing: 8
-        height: 48
-
-        ToolButton {
-            Layout.preferredWidth: 40
-            Layout.preferredHeight: 40
-            background: Rectangle { radius: width/2; color: "#ECEFF4"; border.color: "#D2D7DE" }
-            contentItem: Label {
-                text: "\u2039"
-                font.pixelSize: 22
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                color: "#333"
-            }
-            onClicked: historyPage.backRequested()
-        }
-
-        Label {
-            text: "History"
-            font.pixelSize: 20
-            font.bold: true
-            color: "#333"
-            Layout.alignment: Qt.AlignVCenter
-        }
-
-        Item { Layout.fillWidth: true }
-
-        // Filter/Search button (optional)
-        ToolButton {
-            Layout.preferredWidth: 40
-            Layout.preferredHeight: 40
-            background: Rectangle { radius: width/2; color: "#E3F2FD"; border.color: "#1976D2" }
-            contentItem: Label {
-                text: "⟳"
-                font.pixelSize: 18
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                color: "#1976D2"
-            }
-            onClicked: refreshHistory()
-        }
-    }
-
-    // Loading indicator
+    // ===== Header =====
     Rectangle {
-        id: loadingOverlay
+        id: headerSection
+        width: parent.width; height: 80
+        color: "transparent"; z: 1
+
+        Rectangle {
+            width: 60; height: 60; color: "transparent"
+            anchors.left: parent.left; anchors.leftMargin: 20
+            anchors.verticalCenter: parent.verticalCenter
+            Image { anchors.centerIn: parent; source: "qrc:/assets/icons/back.png"; width: 40; height: 40; fillMode: Image.PreserveAspectFit }
+            MouseArea { anchors.fill: parent; onClicked: historyPage.backRequested() }
+        }
+
+        Text {
+            anchors.centerIn: parent
+            text: "HISTORY IN/OUT"
+            color: "#2C3E50"
+            font.pixelSize: 32; font.bold: true
+        }
+    }
+
+    // ===== Search =====
+    Rectangle {
+        id: searchSection
+        width: 300; height: 50
+        color: "white"
+        border.color: "#BDC3C7"; border.width: 2; radius: 8
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: headerSection.bottom; anchors.topMargin: 30
+        z: 1
+
+        Row {
+            anchors.fill: parent; anchors.margins: 10; spacing: 10
+
+            Rectangle {
+                width: 30; height: 30; color: "transparent"
+                anchors.verticalCenter: parent.verticalCenter
+                Image { anchors.centerIn: parent; source: "qrc:/assets/icons/search.png"; width: 24; height: 24; fillMode: Image.PreserveAspectFit }
+                MouseArea { anchors.fill: parent; onClicked: { searchField.forceActiveFocus(); historyPage.keyboardOpened = true } }
+            }
+
+            TextField {
+                id: searchField
+                width: parent.width - 50; height: 30
+                anchors.verticalCenter: parent.verticalCenter
+                placeholderText: "Search history..."; placeholderTextColor: "#999"
+                readOnly: true; font.pixelSize: 16; color: "#333"
+                background: Rectangle { color: "transparent" }
+                Keys.onPressed:  (e)=> e.accepted = true
+                Keys.onReleased: (e)=> e.accepted = true
+                onTextChanged: historyPage.recomputeFilteredCount()
+                MouseArea { anchors.fill: parent; onClicked: { searchField.forceActiveFocus(); historyPage.keyboardOpened = true } }
+            }
+        }
+    }
+
+    // ===== Loading & Error overlays =====
+    Rectangle {
         anchors.fill: parent
         color: "white"
         opacity: isLoading ? 0.8 : 0
         visible: isLoading
         z: 10
-        
         ColumnLayout {
-            anchors.centerIn: parent
-            spacing: 16
-            
-            BusyIndicator {
-                Layout.alignment: Qt.AlignHCenter
-                running: isLoading
-            }
-            
-            Label {
-                text: "Loading history..."
-                font.pixelSize: 16
-                color: "#666"
-                Layout.alignment: Qt.AlignHCenter
-            }
+            anchors.centerIn: parent; spacing: 16
+            BusyIndicator { Layout.alignment: Qt.AlignHCenter; running: isLoading }
+            Label { text: "Loading history..."; font.pixelSize: 16; color: "#666"; Layout.alignment: Qt.AlignHCenter }
         }
-        
-        Behavior on opacity {
-            NumberAnimation { duration: 200 }
-        }
+        Behavior on opacity { NumberAnimation { duration: 200 } }
     }
-    
-    // Error message
+
     Rectangle {
-        id: errorOverlay
         anchors.fill: parent
         color: "#FFF3E0"
         opacity: errorMessage !== "" ? 1 : 0
         visible: errorMessage !== ""
         z: 10
-        
         ColumnLayout {
-            anchors.centerIn: parent
-            spacing: 16
-            
+            anchors.centerIn: parent; spacing: 16
+            Label { text: "⚠️"; font.pixelSize: 48; Layout.alignment: Qt.AlignHCenter }
             Label {
-                text: "⚠️"
-                font.pixelSize: 48
-                Layout.alignment: Qt.AlignHCenter
+                text: errorMessage; font.pixelSize: 16; color: "#E65100"
+                Layout.alignment: Qt.AlignHCenter; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
             }
-            
-            Label {
-                text: errorMessage
-                font.pixelSize: 16
-                color: "#E65100"
-                Layout.alignment: Qt.AlignHCenter
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.WordWrap
-            }
-            
-            Button {
-                text: "Retry"
-                Layout.alignment: Qt.AlignHCenter
-                onClicked: loadHistoryData()
-            }
+            Button { text: "Retry"; Layout.alignment: Qt.AlignHCenter; onClicked: loadHistoryData() }
         }
-        
-        Behavior on opacity {
-            NumberAnimation { duration: 200 }
-        }
+        Behavior on opacity { NumberAnimation { duration: 200 } }
     }
 
-    // History List
+    // ===== History List =====
     ScrollView {
         id: scrollView
-        anchors.top: titleRow.bottom
-        anchors.left: parent.left
-        anchors.right: parent.right
+        anchors.top: searchSection.bottom
+        anchors.left: parent.left; anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.margins: 16
-        clip: true
-        
-        // Enable smooth scrolling - Remove these lines that cause grouped property error
+        anchors.topMargin: 20; anchors.leftMargin: 20
+        anchors.rightMargin: 20; anchors.bottomMargin: 20
+        clip: true; z: 1
 
         ListView {
             id: historyList
-            spacing: 2
+            spacing: 10
             model: historyData
-            
-            // Smooth scrolling properties
+            visible: historyPage.filteredCount > 0
+
             boundsBehavior: Flickable.DragOverBounds
             boundsMovement: Flickable.StopAtBounds
             flickDeceleration: 1500
             maximumFlickVelocity: 2000
-            
-            // Enable caching for better performance
+
             cacheBuffer: 320
+            topMargin: 8; bottomMargin: 8
             
-            // Add margins for better visual spacing
-            topMargin: 8
-            bottomMargin: 8
+            // Enable scroll bar
+            ScrollBar.vertical: ScrollBar {
+                active: true
+                policy: ScrollBar.AlwaysOn
+                width: 8
+                background: Rectangle {
+                    color: "#E0E0E0"
+                    radius: 4
+                }
+                contentItem: Rectangle {
+                    color: "#BDBDBD"
+                    radius: 4
+                    opacity: parent.pressed ? 1.0 : 0.7
+                    
+                    Behavior on opacity {
+                        NumberAnimation { duration: 150 }
+                    }
+                }
+            }
 
-            delegate: Rectangle {
-                id: historyItem
+            delegate: Item {
                 width: historyList.width
-                height: 60
-                color: getBackgroundColor(modelData.type, modelData.status)
-                border.width: 0
+                height: visible ? 70 : 0
 
-                // Left border color indicator
+                property string key: searchField.text.toLowerCase()
+                visible: key.length === 0
+                         || (modelData.name || "").toLowerCase().indexOf(key) !== -1
+                         || (modelData.time || "").toLowerCase().indexOf(key) !== -1
+                         || (modelData.date || "").toLowerCase().indexOf(key) !== -1
+
                 Rectangle {
+                    id: historyItem
                     anchors.left: parent.left
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    width: 4
-                    color: getBorderColor(modelData.type, modelData.status)
-                }
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    height: 64
+                    radius: 10
+                    color: getBackgroundColor(modelData.type, modelData.status)
+                    border.color: getBorderColor(modelData.type, modelData.status)
+                    border.width: 2
 
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 16
-                    anchors.rightMargin: 16
-                    anchors.topMargin: 8
-                    anchors.bottomMargin: 8
-                    spacing: 12
+                    // RowLayout để tất cả thành phần được căn giữa theo dọc
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        spacing: 12
 
-                    // Avatar
-                    Rectangle {
-                        Layout.preferredWidth: 44
-                        Layout.preferredHeight: 44
-                        radius: 22
-                        color: "#F5F5F5"
-                        border.color: "#E0E0E0"
-                        border.width: 1
-                        clip: true
+                        // Avatar / Captured image
+                        Rectangle {
+                            width: 40; height: 40
+                            radius: 20
+                            color: "#F5F5F5"
+                            border.color: "#E0E0E0"; border.width: 1
+                            clip: true
+                            Layout.alignment: Qt.AlignVCenter
 
-                        Image {
-                            anchors.fill: parent
-                            anchors.margins: 2
-                            source: modelData.avatar
-                            fillMode: Image.PreserveAspectCrop
+                            Image {
+                                id: capturedImage
+                                anchors.fill: parent
+                                fillMode: Image.PreserveAspectCrop
+                                source: modelData.avatar || "qrc:/assets/images/user.png"
+                                smooth: true; antialiasing: true
+                            }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: 20
+                                visible: capturedImage.status !== Image.Ready
+                                color: "#E0E0E0"
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: modelData.name ? modelData.name.charAt(0).toUpperCase() : "?"
+                                    font.pixelSize: 16; font.bold: true; color: "#666"
+                                }
+                            }
+                        }
+
+                        // Tên người dùng – căn giữa theo dọc, chiếm phần còn lại
+                        Text {
+                            text: modelData.name || "Unknown"
+                            font.pixelSize: 18; font.bold: true
+                            color: "#2C3E50"
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+
+                        // Cột Time + Date ở cạnh phải
+                        Column {
+                            spacing: 2
+                            Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
+
+                            Text {
+                                text: modelData.time || "00:00:00"
+                                font.pixelSize: 16; font.bold: true
+                                color: "#2C3E50"
+                                horizontalAlignment: Text.AlignRight
+                            }
+                            Text {
+                                text: modelData.date || Qt.formatDate(new Date(), "yyyy-MM-dd")
+                                font.pixelSize: 12
+                                color: "#607D8B"
+                                horizontalAlignment: Text.AlignRight
+                            }
                         }
                     }
 
-                    // Name and details
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 2
-
-                        Label {
-                            text: modelData.name
-                            font.pixelSize: 16
-                            font.bold: true
-                            color: "#333"
-                        }
-
-                        RowLayout {
-                            spacing: 8
-
-                            Label {
-                                text: getStatusText(modelData.type, modelData.status)
-                                font.pixelSize: 12
-                                color: getTextColor(modelData.type, modelData.status)
-                            }
-
-                            Label {
-                                text: "•"
-                                font.pixelSize: 12
-                                color: "#999"
-                            }
-
-                            Label {
-                                text: modelData.date
-                                font.pixelSize: 12
-                                color: "#666"
-                            }
-                        }
-                    }
-
-                    // Time
-                    Label {
-                        text: modelData.time
-                        font.pixelSize: 14
-                        font.bold: true
-                        color: "#333"
-                        Layout.alignment: Qt.AlignVCenter
-                    }
-
-                    // Status icon
-                    Image {
-                        Layout.preferredWidth: 20
-                        Layout.preferredHeight: 20
-                        source: getStatusIcon(modelData.type, modelData.status)
-                        fillMode: Image.PreserveAspectFit
-                        visible: modelData.status === "failed"
-                    }
-                }
-
-                // Hover effect
-                MouseArea {
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    onEntered: parent.opacity = 0.8
-                    onExited: parent.opacity = 1.0
-                    onClicked: {
-                        console.log("Clicked on:", modelData.name, modelData.type, modelData.time)
-                        // Could open detail view here
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: console.log("Clicked:", modelData.name, modelData.type, modelData.time, modelData.date)
                     }
                 }
             }
-        }
-    }
-    
-    // Custom scroll bar as separate component
-    ScrollBar {
-        id: verticalScrollBar
-        anchors.right: scrollView.right
-        anchors.top: scrollView.top
-        anchors.bottom: scrollView.bottom
-        anchors.rightMargin: 2
-        
-        policy: ScrollBar.AlwaysOn
-        orientation: Qt.Vertical
-        size: scrollView.height / historyList.contentHeight
-        position: historyList.contentY / historyList.contentHeight
-        
-        onPositionChanged: {
-            if (pressed) {
-                historyList.contentY = position * historyList.contentHeight
-            }
-        }
-        
-        background: Rectangle {
-            color: "#F0F0F0"
-            radius: 4
-            width: 8
-        }
-        
-        contentItem: Rectangle {
-            color: verticalScrollBar.pressed ? "#888888" : "#CCCCCC"
-            radius: 4
-            width: 8
             
-            Behavior on color {
-                ColorAnimation { duration: 150 }
+            // Footer để đảm bảo có đủ khoảng trống cuối list
+            footer: Item { height: 20; width: 1 }
+
+            Component.onCompleted: {
+                historyPage.recomputeFilteredCount()
+            }
+            Connections {
+                target: historyPage
+                function onHistoryDataChanged() { historyPage.recomputeFilteredCount() }
             }
         }
     }
 
-    // Remove scroll position indicator since we have custom scroll bar
-
-    // Scroll to top button (appears when scrolled down)
-    Rectangle {
-        id: scrollToTopButton
-        visible: historyList.contentY > 200
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.rightMargin: 60  // More space to avoid scroll bar
-        anchors.bottomMargin: 20
-        width: 48
-        height: 48
-        radius: 24
-        color: "#2196F3"
-        border.color: "#1976D2"
-        border.width: 1
-        z: 10
-        
-        // Shadow effect
-        Rectangle {
-            anchors.fill: parent
-            anchors.topMargin: 2
-            radius: parent.radius
-            color: "#000000"
-            opacity: 0.1
-            z: -1
-        }
-        
-        Label {
-            anchors.centerIn: parent
-            text: "↑"
-            font.pixelSize: 20
-            font.bold: true
-            color: "white"
-        }
-        
-        MouseArea {
-            anchors.fill: parent
-            onClicked: {
-                scrollAnimation.to = 0
-                scrollAnimation.start()
-            }
-        }
-        
-        // Fade in/out animation
-        Behavior on visible {
-            NumberAnimation { 
-                property: "opacity"
-                duration: 200
-                easing.type: Easing.InOutQuad
-            }
-        }
-    }
-    
-    // Smooth scroll to top animation
-    NumberAnimation {
-        id: scrollAnimation
-        target: historyList
-        property: "contentY"
-        duration: 500
-        easing.type: Easing.OutCubic
+    // ===== Empty state =====
+    Column {
+        visible: historyPage.filteredCount === 0 && !isLoading && errorMessage === ""
+        anchors.centerIn: parent
+        spacing: 20; z: 1
+        Image { anchors.horizontalCenter: parent.horizontalCenter; source: "qrc:/assets/icons/empty_search.png"; width: 80; height: 80; fillMode: Image.PreserveAspectFit }
+        Text  { text: "No history found"; color: "#2C3E50"; font.pixelSize: 20; font.bold: true; anchors.horizontalCenter: parent.horizontalCenter }
+        Text  { text: "Try searching with a different name, date or time"; color: "#7F8C8D"; font.pixelSize: 16; anchors.horizontalCenter: parent.horizontalCenter }
     }
 
-    // Helper functions for styling
+    // ===== Helpers for styles =====
     function getBackgroundColor(type, status) {
-        if (status === "failed") {
-            return "#FFEBEE" // Light red
-        }
-        
-        switch(type) {
-            case "checkin":
-                return "#E8F5E8" // Light green
-            case "checkout": 
-                return "#FFF3E0" // Light orange
-            default:
-                return "#F5F5F5" // Light gray
-        }
+        if (status === "failed") return "#FFEBEE" // Light red
+        return "#E8F5E8"                           // Light green
     }
-
     function getBorderColor(type, status) {
-        if (status === "failed") {
-            return "#F44336" // Red
-        }
-        
-        switch(type) {
-            case "checkin":
-                return "#4CAF50" // Green
-            case "checkout":
-                return "#FF9800" // Orange
-            default:
-                return "#9E9E9E" // Gray
-        }
+        if (status === "failed") return "#F44336" // Red
+        return "#4CAF50"                          // Green
     }
 
-    function getTextColor(type, status) {
-        if (status === "failed") {
-            return "#D32F2F" // Dark red
+    // ===== Keyboard overlay =====
+    MouseArea {
+        id: dismissArea
+        anchors.fill: parent; z: 999
+        visible: historyPage.keyboardOpened
+        propagateComposedEvents: true
+        onClicked: (ev) => {
+            if (ev.y < keyboard.y) { historyPage.keyboardOpened = false; searchField.focus = false }
         }
-        
-        switch(type) {
-            case "checkin":
-                return "#2E7D32" // Dark green
-            case "checkout":
-                return "#F57C00" // Dark orange
-            default:
-                return "#616161" // Dark gray
-        }
+    }
+    Keyboard {
+        id: keyboard
+        anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+        target: searchField
+        opened: historyPage.keyboardOpened
+        z: 1000
+        onOpenedChanged: if (!opened) { historyPage.keyboardOpened = false; searchField.focus = false }
     }
 
-    function getStatusText(type, status) {
-        if (status === "failed") {
-            return type === "checkin" ? "Check-in Failed" : "Check-out Failed"
-        }
-        
-        switch(type) {
-            case "checkin":
-                return "Check-in Success"
-            case "checkout":
-                return "Check-out Success"
-            default:
-                return "Unknown"
-        }
-    }
-
-    function getStatusIcon(type, status) {
-        if (status === "failed") {
-            return "qrc:/assets/icons/portrait-circle.png" // Error icon
-        }
-        return "qrc:/assets/icons/success-check.png" // Success icon
-    }
-
-    function refreshHistory() {
-        console.log("Refreshing history...")
-        
-        // Simple refresh animation
-        refreshAnimation.start()
-        
-        // Load fresh data from API
-        loadHistoryData()
-        
-        // Scroll to top after refresh
-        scrollToTop()
-    }
-    
-    function scrollToTop() {
-        scrollAnimation.to = 0
-        scrollAnimation.start()
-    }
-    
-    function scrollToBottom() {
-        scrollAnimation.to = historyList.contentHeight - historyList.height
-        scrollAnimation.start()
-    }
-
-    // Refresh animation
-    SequentialAnimation {
-        id: refreshAnimation
-        
-        PropertyAnimation {
-            target: historyList
-            property: "opacity"
-            from: 1.0
-            to: 0.5
-            duration: 200
-        }
-        
-        PropertyAnimation {
-            target: historyList
-            property: "opacity" 
-            from: 0.5
-            to: 1.0
-            duration: 200
-        }
-    }
-
-    // Filter controls (can be expanded)
-    property string filterType: "all" // all, checkin, checkout, failed
-    property string filterDate: "today" // today, week, month, all
-
-    function applyFilters() {
-        // This would filter the historyData based on current filters
-        // For now just a placeholder
-        console.log("Applying filters:", filterType, filterDate)
-    }
-    
-    // Load data when page is completed
+    // ===== Init & backend hooks =====
     Component.onCompleted: {
-        console.log("History page completed, loading data...")
         loadHistoryData()
+        historyPage.recomputeFilteredCount()
     }
-    
-    // Backend signal connections
     Connections {
         target: backend
         function onRecognitionHistoryChanged() {
-            console.log("Global recognition history changed, reloading...")
             loadGlobalRecognitionHistory()
         }
-        
-        function onRecognitionEventAdded(userName, success, timestamp) {
-            console.log("Recognition event received in History:", userName, success, timestamp)
+        function onRecognitionEventAdded(userName, success, ts) {
             addRecognitionEvent(userName, success)
         }
-        
         function onFaceRecognized(userId, userName) {
-            console.log("Face recognized in History page:", userName)
-            // Add recognition event to history
             addRecognitionEvent(userName, true)
         }
-        
         function onFaceRecognitionFailed() {
-            console.log("Face recognition failed in History page")
-            // Add failed recognition event to history
             addRecognitionEvent("Unknown", false)
-        }
-        
-        function onHistoryDataLoaded(data) {
-            console.log("History data loaded from backend, type:", typeof data)
-            console.log("History data loaded from backend, length:", data ? data.length : "undefined")
-            console.log("History data loaded from backend, first item:", data && data.length > 0 ? data[0] : "none")
-            onHistoryDataLoaded(data)
-        }
-        
-        function onHistoryDataLoadedJson(jsonData) {
-            console.log("History data loaded as JSON, length:", jsonData.length)
-            try {
-                var data = JSON.parse(jsonData)
-                console.log("Parsed JSON data, type:", typeof data, "length:", data.length)
-                onHistoryDataLoaded(data)
-            } catch (error) {
-                console.error("Error parsing JSON:", error)
-                errorMessage = "Error parsing history data: " + error
-            }
-        }
-        
-        function onHistoryDataLoadFailed(error) {
-            console.log("History data load failed:", error)
-            isLoading = false
-            errorMessage = "Failed to load history: " + error
-            // Fallback to mock data for testing
-            historyData = mockHistoryData
-        }
-    }
-    
-    // Keyboard navigation support
-    focus: true
-    Keys.onPressed: (event) => {
-        switch(event.key) {
-            case Qt.Key_Home:
-                scrollToTop()
-                event.accepted = true
-                break
-            case Qt.Key_End:
-                scrollToBottom() 
-                event.accepted = true
-                break
-            case Qt.Key_PageUp:
-                historyList.contentY = Math.max(0, historyList.contentY - historyList.height * 0.8)
-                event.accepted = true
-                break
-            case Qt.Key_PageDown:
-                historyList.contentY = Math.min(historyList.contentHeight - historyList.height, 
-                                               historyList.contentY + historyList.height * 0.8)
-                event.accepted = true
-                break
-            case Qt.Key_F5:
-                refreshHistory()
-                event.accepted = true
-                break
         }
     }
 }

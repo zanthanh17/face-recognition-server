@@ -20,77 +20,80 @@ Item {
 
     // Real WiFi networks data from backend
     property var availableNetworks: []
-
-    HeaderBar {
-        id: header
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        wifiConnected: isConnected
+    
+    // ===== Background =====
+    Image {
+        anchors.fill: parent
+        source: "qrc:/assets/images/background.png"
+        fillMode: Image.PreserveAspectCrop
+        z: 0
     }
 
-    RowLayout {
-        id: titleRow
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: header.bottom
-        anchors.margins: 12
-        spacing: 8
-        height: 48
+    // ===== Header =====
+    Rectangle {
+        id: headerSection
+        width: parent.width; height: 80
+        color: "transparent"; z: 1
 
-        ToolButton {
-            Layout.preferredWidth: 40
-            Layout.preferredHeight: 40
-            background: Rectangle { radius: width/2; color: "#ECEFF4"; border.color: "#D2D7DE" }
-            contentItem: Label {
-                text: "\u2039"
-                font.pixelSize: 22
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                color: "#333"
-            }
-            onClicked: networkPage.backRequested()
+        // Back
+        Rectangle {
+            width: 60; height: 60; color: "transparent"
+            anchors.left: parent.left; anchors.leftMargin: 20
+            anchors.verticalCenter: parent.verticalCenter
+            Image { anchors.centerIn: parent; source: "qrc:/assets/icons/back.png"; width: 40; height: 40; fillMode: Image.PreserveAspectFit }
+            MouseArea { anchors.fill: parent; onClicked: networkPage.backRequested() }
         }
 
-        Label {
-            text: "Wi-fi"
-            font.pixelSize: 20
-            font.bold: true
-            color: "#333"
-            Layout.alignment: Qt.AlignVCenter
+        // Title
+        Text {
+            anchors.centerIn: parent
+            text: "NETWORK SETTINGS"
+            color: "#2C3E50"
+            font.pixelSize: 28; font.bold: true
         }
-
-        Item { Layout.fillWidth: true }
-
+        
         // Refresh button
-        ToolButton {
-            Layout.preferredWidth: 40
-            Layout.preferredHeight: 40
-            background: Rectangle { radius: width/2; color: "#E3F2FD"; border.color: "#1976D2" }
-            contentItem: Label {
-                text: "⟳"
-                font.pixelSize: 18
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                color: "#1976D2"
+        Rectangle {
+            width: 60; height: 60; color: "transparent"
+            anchors.right: parent.right; anchors.rightMargin: 20
+            anchors.verticalCenter: parent.verticalCenter
+            
+            Rectangle {
+                anchors.centerIn: parent
+                width: 40; height: 40
+                radius: 20
+                color: "#E3F2FD"
+                border.color: "#1976D2"
+                border.width: 2
+                
+                Text {
+                    anchors.centerIn: parent
+                    text: "⟳"
+                    font.pixelSize: 18
+                    color: "#1976D2"
+                }
             }
-            onClicked: {
-                console.log("Refreshing WiFi networks...")
-                backend.refreshNetworks()
-                loadNetworks()
+            
+            MouseArea {
+                anchors.fill: parent
+                onClicked: {
+                    console.log("Refreshing WiFi networks...")
+                    backend.refreshNetworks()
+                    loadNetworks()
+                }
             }
         }
     }
 
     ColumnLayout {
-        anchors.top: titleRow.bottom
+        anchors.top: headerSection.bottom
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.margins: 16
-        spacing: 16
-
-
+        anchors.margins: 20
+        anchors.topMargin: 30
+        spacing: 20
+        z: 1
 
         // WiFi Enable/Disable Toggle
         Rectangle {
@@ -268,7 +271,7 @@ Item {
 
                             // Arrow indicator
                             Label {
-                                text: "\u203A"
+                                text: "›"
                                 font.pixelSize: 16
                                 color: "#666"
                             }
@@ -366,7 +369,7 @@ Item {
         }
     }
 
-        // Password Dialog - using custom implementation like Setting page
+    // Password Dialog - using custom implementation like Setting page
     Rectangle {
         id: passwordDialog
         anchors.fill: parent
@@ -439,6 +442,17 @@ Item {
                                 }
                             }
                         }
+                        
+                        // Placeholder text
+                        Text {
+                            visible: passwordInput.text.length === 0
+                            text: "Enter WiFi password"
+                            color: "#999999"
+                            font.pixelSize: 16
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.left: parent.left
+                            anchors.leftMargin: 8
+                        }
 
                         // Eye icon to toggle password visibility
                         Rectangle {
@@ -500,10 +514,11 @@ Item {
                     }
 
                     Button {
-                        text: "Connect"
+                        text: isConnecting ? "Connecting..." : "Connect"
+                        enabled: !isConnecting && passwordInput.text.length > 0
                         Layout.fillWidth: true
                         background: Rectangle {
-                            color: "#3498db"
+                            color: isConnecting ? "#95a5a6" : "#3498db"
                             radius: 4
                         }
                         contentItem: Text {
@@ -515,6 +530,8 @@ Item {
                         }
                         onClicked: {
                             networkPage.keyboardOpened = false
+                            // Clear previous error status before attempting connection
+                            connectionStatus = ""
                             performConnection(passwordDialog.targetSSID, passwordInput.text)
                         }
                     }
@@ -524,12 +541,14 @@ Item {
 
         // Virtual keyboard using existing component
         Keyboard {
+            id: keyboard
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             target: passwordInput
             opened: passwordDialog.visible && networkPage.keyboardOpened
             z: 1001
+            onOpenedChanged: if (!opened) { networkPage.keyboardOpened = false }
         }
 
         // Functions
@@ -545,6 +564,16 @@ Item {
         function hide() {
             passwordDialog.visible = false
             networkPage.keyboardOpened = false
+        }
+    }
+    
+    // ===== Dismiss keyboard =====
+    MouseArea {
+        id: dismissArea
+        anchors.fill: parent; z: 999
+        visible: networkPage.keyboardOpened
+        onClicked: function(ev) {
+            if (ev.y < keyboard.y) { networkPage.keyboardOpened = false; passwordInput.focus = false }
         }
     }
 
@@ -564,25 +593,47 @@ Item {
         isConnecting = true
         connectionStatus = ""
         
-        console.log("Attempting to connect to:", ssid)
+        console.log("=== WiFi Connection Attempt ===")
+        console.log("SSID:", ssid)
+        console.log("Password length:", password.length)
+        console.log("Password (first 3 chars):", password.substring(0, 3) + "...")
         
         // Use real backend connection to connect to actual device WiFi
+        // This will use the actual system WiFi to connect with the real password
         let success = backend.connectToNetwork(ssid, password)
         
+        console.log("Backend connectToNetwork returned:", success)
+        
         if (success) {
-            console.log("Connection successful!")
+            console.log("✅ WiFi connection successful to:", ssid)
             isConnected = true
             currentSSID = ssid
+            connectionStatus = "success"
             networkPage.wifiConfigured(true)
             
-            // Refresh networks to update the list
-            loadNetworks()
+            // Hide password dialog immediately on success
+            passwordDialog.hide()
+            
+            // Refresh networks to update the list and show connected status
+            setTimeout(function() {
+                loadNetworks()
+            }, 2000) // Wait 2 seconds for system to update
+            
         } else {
-            console.log("Connection failed!")
+            console.log("❌ WiFi connection failed to:", ssid)
+            console.log("This could be due to:")
+            console.log("1. Incorrect password")
+            console.log("2. Network not in range")
+            console.log("3. System WiFi issues")
+            console.log("4. nmcli command failed")
+            
             connectionStatus = "incorrect"
             isConnected = false
             currentSSID = ""
             networkPage.wifiConfigured(false)
+            
+            // Keep password dialog open to allow retry
+            // User can see error message and try again
         }
         
         isConnecting = false
@@ -639,8 +690,6 @@ Item {
         
         console.log("WiFi radio enabled:", wifiRadioEnabled, "Loaded", availableNetworks.length, "networks, connected to:", currentSSID)
     }
-    
-
 
     // Initialize page
     Component.onCompleted: {
@@ -670,8 +719,4 @@ Item {
             }
         }
     }
-
-
-
-
 }
